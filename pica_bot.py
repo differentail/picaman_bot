@@ -1,8 +1,4 @@
-import os
-import discord
-import time
-from dotenv import load_dotenv
-from random import randint, shuffle
+from myExtcmds import *
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -18,20 +14,6 @@ guessnumNumber = randint(1,1024)
 guessnumPlayer = ''
 guessnumPlayerID = ''
 guessnumCount = 0
-
-
-def choose(content):
-    return content[randint(0,len(content)-1)]
-
-
-def isAdmin(messageSender):
-    isAdminbool = False
-    if(hasattr(messageSender, 'roles')):
-       for role in messageSender.roles:
-          if(str(role) == 'สิทธิ์แอดมินละกัน'):
-              isAdminbool = True
-              break
-    return isAdminbool
 
 
 class myClient(discord.Client):
@@ -165,7 +147,7 @@ class myClient(discord.Client):
                     await fromChannel.send(f'{message.author.mention} ตวงติงนักน้าาาาาา')
                 else:
                     try:
-                        thisnum = int(message.content[3:])
+                        thisnum = int(message.content[2:])
                         if(thisnum == guessnumNumber):
                             responses = ['เก่งสุด ๆ ไปเลยนะ','ว้าวซ่า','โห้ เก่งนี่หว่า']
                             isGuessnumPlaying = False
