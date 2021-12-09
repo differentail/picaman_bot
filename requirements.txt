@@ -1,0 +1,9 @@
+asyncio
+os
+discord
+sys
+aioconsole
+dotenv
+youtube_dl
+discord_together
+random
