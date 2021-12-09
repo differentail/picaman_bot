@@ -1,5 +1,4 @@
 asyncio
-os
 discord
 sys
 aioconsole
