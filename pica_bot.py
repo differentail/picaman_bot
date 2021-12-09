@@ -59,6 +59,26 @@ self_role_ids = {
 }
 
 
+class Song:
+    def __init__(self, player, file_name, song_title):
+        self.player = player
+        self.file_name = file_name
+        self.song_title = song_title
+
+    def copy(self, volume):
+        return Song(
+            discord.PCMVolumeTransformer(
+                discord.FFmpegPCMAudio(dirpath + "\\songs\\" + self.file_name), volume,
+            ),
+            self.file_name,
+            self.title,
+        )
+
+    @property
+    def song_id(self):
+        return self.file_name[: self.file_name.rfind(".")]
+
+
 class myClient(discord.Client):
     def say_hi(self):
         print("hi")
@@ -78,15 +98,9 @@ class myClient(discord.Client):
     async def update_song_list(self):
         text = "__***Queue list:***__\n"
         if len(self.song_queue):
-            song_name = self.song_queue[0][2]
-            song_id = self.song_queue[0][1]
-            song_id = song_id[: song_id.rfind(".")]
-            text += f"1. {song_name} `({song_id})` ***(Playing now)***\n"
+            text += f"1. {self.song_queue[0].song_title} `({self.song_queue[0].song_id})` ***(Playing now)***\n"
             for i, song in enumerate(self.song_queue[1:], start=2):
-                song_name = song[2]
-                song_id = self.song_queue[0][1]
-                song_id = song_id[: song_id.rfind(".")]
-                text += str(i) + ". " + song_name + f" ({song_id})" + "\n"
+                text += f"{i}. {song.song_title} `({song.song_id})`\n"
         await self.music_message.edit(content=text)
         return
 
@@ -206,16 +220,19 @@ class myClient(discord.Client):
         if error is not None:
             print("Something is wrong...?", error)
 
+        last_song_file_name = None
         if len(self.song_queue):
-            last_song = self.song_queue.pop(0)[1]
+            last_song_file_name = self.song_queue.pop(0).file_name
         if len(self.song_queue):
-            self.voice_clients[0].play(self.song_queue[0][0], after=self.get_next_song)
+            self.voice_clients[0].play(
+                self.song_queue[0].player, after=self.get_next_song
+            )
 
-        if self.remove_song:
+        if self.remove_song and last_song_file_name is not None:
             try:
-                os.remove(dirpath + "\\songs\\" + last_song)
+                os.remove(dirpath + "\\songs\\" + last_song_file_name)
             except Exception as e:
-                print(e)
+                print("cant remove file", last_song_file_name, "\n", "Error:", e)
         else:
             self.remove_song = True
 
@@ -255,11 +272,17 @@ class myClient(discord.Client):
                     if song_no == 0:
                         self.voice_clients[0].stop()
                     else:
-                        skipping_song = self.song_queue.pop(song_no)[1]
+                        skipping_song_file_name = self.song_queue.pop(song_no).file_name
                         try:
-                            os.remove(dirpath + "\\songs\\" + skipping_song)
-                        except:
-                            pass
+                            os.remove(dirpath + "\\songs\\" + skipping_song_file_name)
+                        except Exception as e:
+                            print(
+                                "cant remove file",
+                                skipping_song_file_name,
+                                "\n",
+                                "Error:",
+                                e,
+                            )
                         await self.update_song_list()
                 elif cmd == "volume":
                     try:
@@ -303,18 +326,20 @@ class myClient(discord.Client):
                     downloaded_path = os.path.join(
                         dirpath, "songs", download["id"] + "." + download["ext"]
                     )
-                    song = discord.PCMVolumeTransformer(
-                        discord.FFmpegPCMAudio(downloaded_path), self.volume
+                    song = Song(
+                        discord.PCMVolumeTransformer(
+                            discord.FFmpegPCMAudio(downloaded_path), self.volume
+                        ),
+                        download["id"] + "." + download["ext"],
+                        download["title"],
                     )
-                    self.song_queue.append(
-                        (
-                            song,
-                            download["id"] + "." + download["ext"],
-                            download["title"],
-                        )
-                    )
+
+                    self.song_queue.append(song)
+
                     if not self.voice_clients[0].is_playing():
-                        self.voice_clients[0].play(song, after=self.get_next_song)
+                        self.voice_clients[0].play(
+                            song.player, after=self.get_next_song
+                        )
                     await self.update_song_list()
                 else:  # error
                     if download["error_on_search"]:
@@ -827,15 +852,7 @@ class myClient(discord.Client):
         elif reactionAdded.message_id == self.music_message_id:
             if reactionAdded.emoji.name == "⏮️":
                 if len(self.voice_clients) > 0:
-                    playing = (
-                        discord.PCMVolumeTransformer(
-                            discord.FFmpegPCMAudio(
-                                dirpath + "\\songs\\" + self.song_queue[0][1]
-                            ),
-                            self.volume,
-                        ),
-                        self.song_queue[0][1],
-                    )
+                    playing = self.song_queue[0].copy(self.volume)
                     self.song_queue.insert(1, playing)
                     self.remove_song = False
                     self.voice_clients[0].stop()
@@ -853,7 +870,7 @@ class myClient(discord.Client):
                         print("not playing nor paused")
             elif reactionAdded.emoji.name == "⏭️":
                 if len(self.voice_clients) > 0:
-                    print(f"Skipping song {self.song_queue[0][2]}!")
+                    print(f"Skipping song {self.song_queue[0].song_title}!")
                     self.voice_clients[0].stop()
                 else:
                     print("not in a voice channel")
@@ -861,13 +878,16 @@ class myClient(discord.Client):
                 print("exit voice ch cmd issued")
                 if len(self.voice_clients) > 0:
                     for song in self.song_queue[1:]:
-                        os.remove(dirpath + "\\songs\\" + song[1])
+                        song.player = None
+                        os.remove(dirpath + "\\songs\\" + song.file_name)
+                    self.song_queue = self.song_queue[:1]
                     if (
                         self.voice_clients[0].is_playing()
                         or self.voice_clients[0].is_paused()
                     ):
+                        cur_song = self.song_queue[0]
                         self.voice_clients[0].stop()
-                    self.song_queue = []
+
                     await self.update_song_list()
                     await self.voice_clients[0].disconnect()
             elif reactionAdded.emoji.name == "💱":
