@@ -1,211 +1,939 @@
-from myExtcmds import *
+from asyncio.tasks import sleep
+import asyncio
+import os
+import discord
+import sys
+import aioconsole
+import dotenv
+import youtube_dl
+import discord_together
+from discord.errors import ClientException, Forbidden
+from dotenv import load_dotenv
+from random import randint, shuffle, choice
+
+
+def isAdmin(messageSender, fromChannel):
+    return messageSender.permissions_in(fromChannel).administrator
+
+
+def list_diff(a, b):
+    return list(set(a) - (set(b)))
+
+
+def do_reboot():
+    os.execv(sys.executable, ["python"] + sys.argv)
+
 
 load_dotenv()
-TOKEN = os.getenv('DISCORD_TOKEN')
-MY_ID = os.getenv('MY_ID')
+TOKEN = os.getenv("DISCORD_TOKEN")
+MY_ID = int(os.getenv("MY_ID"))
+TEST_CHANNEL_ID = int(os.getenv("TEST_CHANNEL_ID"))
+BOT_ID = int(os.getenv("BOT_ID"))
+YT_KEY = os.getenv("YT_KEY")
+_volume = float(os.getenv("VOLUME"))
 
-
+dirpath = os.path.dirname(__file__)
 lobby = []
 lobbyCreated = False
-lobbyCreator = ''
-client = discord.Client()
+lobbyCreator = ""
 isGuessnumPlaying = False
-guessnumNumber = randint(1,1024)
-guessnumPlayer = ''
-guessnumPlayerID = ''
+guessnumNumber = randint(1, 1024)
+guessnumPlayer = ""
+guessnumPlayerID = ""
 guessnumCount = 0
+ydl_opts = {
+    "outtmpl": f"{dirpath}\\songs\\%(id)s.%(ext)s",
+    "format": "bestaudio",
+    "default_search": "ytsearch",
+}
+ydl = youtube_dl.YoutubeDL(ydl_opts)
+my_server_id = 703264756986937415
+self_role_channel_id = 859078452346880040
+selfRoleMsgID = 859079003691548712
+
+self_role_emojis = ["valo", "petCrew", "zhongliRed"]
+self_role_ids = {
+    "valo": 857645813128101898,
+    "petCrew": 857645382543867926,
+    "zhongliRed": 878277681488224296,
+}
 
 
 class myClient(discord.Client):
-    async def on_ready(self):
-        await self.change_presence(status=discord.Status.online,activity=discord.Game(name='with @Differential'))
-        print(f'Logged in as {self.user}  ------\nReady!')
+    def say_hi(self):
+        print("hi")
+
+    async def wait_for_input(self):
+        while True:
+            int_command = await aioconsole.ainput()
+            if int_command == "reboot":
+                print("Rebooting...")
+                await self.close()
+                do_reboot()
+            elif int_command == "exit":
+                await self.close()
+            else:
+                print("Invalid command")
+
+    async def update_song_list(self):
+        text = "__***Queue list:***__\n"
+        if len(self.song_queue):
+            song_name = self.song_queue[0][2]
+            song_id = self.song_queue[0][1]
+            song_id = song_id[: song_id.rfind(".")]
+            text += f"1. {song_name} `({song_id})` ***(Playing now)***\n"
+            for i, song in enumerate(self.song_queue[1:], start=2):
+                song_name = song[2]
+                song_id = self.song_queue[0][1]
+                song_id = song_id[: song_id.rfind(".")]
+                text += str(i) + ". " + song_name + f" ({song_id})" + "\n"
+        await self.music_message.edit(content=text)
         return
 
+    def dl_song(self, title: str) -> dict:
+        try:
+            info = ydl.extract_info(title, download=False)
+        except Exception as e:
+            print("extract info error!", e)
+            return {"download_ok": False, "error_on_search": True, "exception": e}
+
+        if "entries" in info:
+            if len(info["entries"]) > 0:
+                info = info["entries"][0]
+            else:
+                print("not found!?")
+                return {
+                    "download_ok": False,
+                    "error_on_search": True,
+                    "exception": "Query not found :(",
+                }
+        try:
+            ydl.download(["https://youtu.be/" + info["id"]])
+        except youtube_dl.utils.DownloadError as e:
+            print("download error!", info["title"], "\n", e)
+            return {
+                "download_ok": False,
+                "error_on_search": False,
+                "exception": e,
+                "title": info["title"],
+                "ext": info["ext"],
+                "id": info["id"],
+            }
+        else:
+            return {
+                "download_ok": True,
+                "title": info["title"],
+                "ext": info["ext"],
+                "id": info["id"],
+            }
+
+    async def on_ready(self):
+        await self.change_presence(
+            status=discord.Status.online,
+            activity=discord.Game(name="with @Differential"),
+        )  # change status
+        print(f"Logged in as {self.user}")
+        print("Setting private variables...")
+
+        self.song_queue = []
+        self.volume = _volume
+        self.music_channel_id = 887307591062020136
+        self.music_channel = self.get_channel(self.music_channel_id)
+        self.music_message_id = 887309277604237342
+        self.music_message = self.music_channel.get_partial_message(
+            self.music_message_id
+        )
+        self.remove_song = True
+        self.discord_together = await discord_together.DiscordTogether(TOKEN)
+        await self.update_song_list()
+
+        print("checking for self role changes")
+        my_server = self.get_guild(my_server_id)
+
+        # ------------ checking for self role adding ---------------
+        self_role_message = await self.get_channel(self_role_channel_id).fetch_message(
+            selfRoleMsgID
+        )
+        for reaction in self_role_message.reactions:
+            role_to_add = discord.Object(-1)
+            members_have_role = my_server.get_role(
+                self_role_ids[reaction.emoji.name]
+            ).members
+            if reaction.emoji.name in self_role_emojis:
+                role_to_add.id = self_role_ids[reaction.emoji.name]
+            else:
+                await reaction.clear()
+                return
+            reaction_senders = await reaction.users().flatten()
+            for user in list_diff(
+                reaction_senders, members_have_role
+            ):  # self role adding
+                if user.id != BOT_ID:
+                    await user.add_roles(role_to_add)  # add the role
+                    print(f"added {reaction.emoji.name}'s role to {user.name}")
+
+            for member in list_diff(
+                members_have_role, reaction_senders
+            ):  # self role remove
+                if member.id != BOT_ID:
+                    await member.remove_roles(
+                        discord.Object(self_role_ids[reaction.emoji.name])
+                    )
+                    print(f"removed {reaction.emoji.name}'s role to {member.name}")
+        # ------------ done checking self role adding --------------
+
+        # ------------ checking for self role removing -------------
+        """
+        for reaction in self_role_message.reactions:
+            if reaction.emoji.name in self_role_emojis:
+                senders = await reaction.users().flatten()
+                for member in list_diff(
+                    my_server.get_role(self_role_ids[reaction.emoji.name]).members,
+                    senders,
+                ):
+                    if member.id != BOT_ID:
+                        await member.remove_roles(
+                            discord.Object(self_role_ids[reaction.emoji.name])
+                        )
+                        print(f"removed {reaction.emoji.name}'s role to {user.name}")
+        """
+        # ------------ done checking for self role removing --------
+        print("ready!")
+        await self.wait_for_input()
+        return
+
+    def get_next_song(self, error):
+        if error is not None:
+            print("Something is wrong...?", error)
+
+        if len(self.song_queue):
+            last_song = self.song_queue.pop(0)[1]
+        if len(self.song_queue):
+            self.voice_clients[0].play(self.song_queue[0][0], after=self.get_next_song)
+
+        if self.remove_song:
+            try:
+                os.remove(dirpath + "\\songs\\" + last_song)
+            except Exception as e:
+                print(e)
+        else:
+            self.remove_song = True
+
+        asyncio.run_coroutine_threadsafe(self.update_song_list(), self.loop)
 
     async def on_member_join(self, member):
         joinedGuild = member.guild
         if joinedGuild.system_channel is not None:
-            await joinedGuild.system_channel.send('สวัสดีเจ้า ' + member.mention + ' น้าาาาาาา')
+            await joinedGuild.system_channel.send(
+                "สวัสดีเจ้า " + member.mention + " น้าาาาาาา"
+            )
         return
-
 
     async def on_member_remove(self, member):
         joinedGuild = member.guild
         if joinedGuild.system_channel is not None:
-            await joinedGuild.system_channel.send('บะบายน้า ' + member.mention + ' ;w;')
+            await joinedGuild.system_channel.send("บะบายน้า " + member.mention + " ;w;")
         return
-
 
     async def on_message(self, message):
-        fromChannel=self.get_channel(message.channel.id)
-        if(not message.content.startswith('!') or message.author.id==self.user.id):
+        if not self.is_ready():
             return
-        if(message.content.startswith('!help')):
-            em = discord.Embed(title = 'สิ่งที่เราทำได้ตอนนี้อ่ะนะ :thinking:',description='มีเท่านี้แหละ\nไปสั่งคนทำมาเพิ่มฟีเจอร์เราสิ ;w;',author='Pica, pica!',colour=0xffe770)
-            em.add_field(name = '!help',value='ก็อันนี้นี่แหละ')
-            em.add_field(name = '!ดีมั้ย {คำถาม}/!ดีไหม {คำถาม}',value='เอาไว้ช่วยตัดสินใจอ่ะนะ')
-            em.add_field(name = '!role',value='ช่วยตัดสินใจว่าเล่นตำแหน่งไรดี \(RoV\)')
-            await fromChannel.send(content=None,embed=em)
-        elif(message.content.startswith('!ดีมั้ย') or message.content.startswith('!ดีไหม')):
-            if(message.content == '!ดีมั้ย' or message.content==('!ดีไหม')):
-                await fromChannel.send(message.author.mention + ' อะไรเล่า!?')
-                return
-            responses=['เอาดิ','จัดไปอย่าให้เสีย','เรื่องนี้มันก็แน่อยู่แล้วปะวะ',\
-                       'จะถามอย่างงั้นจริงๆ หรอ','ไม่แน่ใจเท่าไหร่ว่ะ','ห้ะ?',\
-                       'ไม่ดีกว่า','อย่าเลยเพื่อน','ถ้าอยากมีความสุขก็อย่าเถอะ']
-            await fromChannel.send(message.author.mention + ' ' + choose(responses))
-        elif(message.content.startswith('!hi')):
-            responses = ['สวัสดี! ','สวัสดีจ้า ','ฮ้ายฮายย~ ','เห็นโล่วเจ้า ','ว่างาย ','Bonjour! ','안녕 ']
-            await fromChannel.send(choose(responses) + ":wave: " + message.author.mention)
-        elif(message.content.startswith('!role')):
-            responses=['แครี่ดิวะ','คนไทยหัวใจแครี่สิดี','แครี่ที่ดีต้องเป็นคุณ','ทีมต้องการแครี่!',\
-                       'โรมมิ่งวิ่งแก้งไปสิ','โรมไปนะเพื่อน','ไปซัพแครี่ซะนะ','ทีมต้องการโรม!',\
-                       'เมจเก่งไม่ใช่หรอเราอ่ะ','ไปโยนสกิลใส่เลนกลางเล้ยยยยย','อย่างงี้ต้องเดินทางสายกลาง','ทีมต้องการเมจ!',\
-                       'ไปเก็บตังในป่าซะ','ป่าน่าจะเหมาะสุดนะจังหวะนี้','ทีมมันกาก ต้องเล่นป่าไปแบกสิ','ทีมต้องการป่า!',\
-                       'ไปเฝ้าป้อมเล่นด้าคให้หน่อยสิ','จงไปเลนดาร์คซะ','เป็นแท้งให้ทีมสิดี','ทีมต้องการแท้ง!']
-            await fromChannel.send(message.author.mention + ' ' + choose(responses))
-        elif(message.content.startswith('!lobby')):
-            global lobby, lobbyCreated, lobbyCreator
-            if(message.content[7:]=='help'):
-                em = discord.Embed(title = '!lobby',description='วิธีใช้ !lobby นะครับทุกทั่น :100:\n:rainbow: คำสั่งต่อไปนี้พิมต่อจาก !lobby เว้นด้วย 1 เว้นวรรคนะ :rainbow:',author='Pica, pica!',colour=0xf5ad42)
-                em.add_field(name='help',value='ก็อันนี้นี่แหละ')
-                em.add_field(name='create random',value='สร้างตี้แบบสุ่มตำแหน่งให้ คือบอทจะสุ่มตำแหน่งให้แต่ละคนอ่ะ สร้างได้ทีละห้องนะ!!')
-                em.add_field(name='join',value='เข้าห้องที่สร้างอยู่ตอนนี้ ถ้ามีอ่ะนะ')
-                await fromChannel.send(content=None,embed=em)
-            elif(message.content[7:]=='create random'):
-                if(lobbyCreated):
-                    await fromChannel.send(message.author.mention + f' {lobbyCreator} สร้างล็อบบี้ไปแล้วน้า')
-                else:
-                    lobbyCreator = message.author.name
-                    lobby.append(message.author.id)
-                    lobbyCreated=True
-                    await fromChannel.send('ล็อบบี้ถูกสร้างโดย ' + message.author.mention + ' เรียบร้อยแน้ว!')
-            elif(message.content[7:]=='join'):
-                if(lobbyCreated):
-                    if(message.author.id in lobby):
-                        await fromChannel.send(message.author.mention + ' พี่อยู่ในล็อบบี้อยู่แล้วง่าาา')
-                        return;
-                    lobby.append(message.author.id)
-                    msg = ''
-                    for peopleInd in range(len(lobby)):
-                        msg+=f'{peopleInd+1} - {discord.Client.get_user(self,lobby[peopleInd]).mention}\n'
-                    await fromChannel.send('เพิ่ม ' + message.author.mention + ' เข้าล็อบบี้แบ้วฮับ!\nตอนนี้สมาชิกตี้มี:\n' + msg)
-                    if(len(lobby)==5):
-                        random.shuffle(lobby)
-                        await fromChannel.send('ล็อบบี้เต็มละน้าา ผลสุ่มก็คื๊ออออ:\n'\
-                            + discord.Client.get_user(self,lobby[0]).mention + ' ไปเลนดาร์คน้า\n'\
-                            + discord.Client.get_user(self,lobby[1]).mention + ' ฟามป่าเลยจ้า\n'\
-                            + discord.Client.get_user(self,lobby[2]).mention + ' ไปโยนสกิลในเลนกลางน้า\n'\
-                            + discord.Client.get_user(self,lobby[3]).mention + ' แบกทีมด้วยแครี่ในเลนมังกรไปเลยยยย\n'\
-                            + discord.Client.get_user(self,lobby[4]).mention + ' นายจะได้เป็นโรมที่ดีที่สุดในทีม!\nEnjoy~')
-                        lobby.clear();
-                        lobbyCreated=False;
-                else:
-                    await fromChannel.send(message.author.mention + ' ล็อบบี้ยังเคยไม่เคยสร้างง่า ลอง !lobby create random ดูเสะ')
-            else:
-                await fromChannel.send(message.author.mention + ' ถ้าใช้ยังไม่เป็น ลอง !lobby help น้า')
-        elif(message.content.startswith('!ping')):
-            await fromChannel.send(message.author.mention + ' ป๊อง! ' + str(round(self.latency*1000)) + ' ms')
-        elif(message.content.startswith('!bye')):
-            responses = ['บ้ายบายยยย ','ลาก่อยยยย ','แจปืนนนน ','ไว้เจอกันค้าบบ ','โชคดีน้าาา ']
-            await fromChannel.send(choose(responses) + ":wave: " + message.author.mention)
-        elif(message.content.startswith('!guessnum')):
-            global isGuessnumPlaying, guessnumPlayer, guessnumPlayerID, guessnumNumber
-            if(message.content[9:]==' reset'):
-                if(not isAdmin(message.author)):
-                    await fromChannel.send(f'{message.author.mention} อันนี้แอดมินใช้เท่านั้นน้าา')
-                    return
-                else:
-                    isGuessnumPlaying = False
-                    guessnumPlayer = ''
-                    guessnumPlayerID = ''
-                    guessnumNumber = randint(1,1024)
-                    await fromChannel.send(f'รีเซ็ตเกมทายเลขละจ้า')
-                    return
-            elif(isGuessnumPlaying):
-                if(message.author.id != guessnumPlayerID):
-                    await fromChannel.send(f"{message.author.mention} กำลังเล่นกับ {guessnumPlayer} อยู่ง่าาาาา")
-                else:
-                    await fromChannel.send(f"{message.author.mention} ทายมาสิครับ รออะไร!?")
-            elif(not isGuessnumPlaying):
-                isGuessnumPlaying = True
-                guessnumPlayer = message.author.name
-                guessnumPlayerID = message.author.id
-                await fromChannel.send(f"**ก็มาดิครับ** {message.author.mention} :exclamation:\n\
-:question: **วิธีเล่น** :question:\n\
-เราจะให้นายทายเลขที่เราคิดไว้ มีค่า `1` ถึง `1024`\n\
-พิมพ์ว่า `!? <ตัวเลข>` - ทายว่าใช่เลขนี้มั้ย\n\
-แล้วเราจะบอกว่าใช่ น้อยกว่าหรือมากกว่าเลขของเรา")
-        elif(message.content.startswith('!?')):
-            if(not isGuessnumPlaying or message.author.id != guessnumPlayerID):
-                await fromChannel.send(f'อยากเล่นหรอครับคุณ {message.author.mention} พิม `!guessnum` ก่อนนะครับ ไม่ก็รอคนอื่นเล่นจบก่อนน้า')
-            else:
-                if(message.content == '!?'):
-                    await fromChannel.send(f'ทายมาสิครับ รออยู่นะ! {message.author.mention}')
-                elif(message.content[2:] == ' <ตัวเลข>'):
-                    await fromChannel.send(f'{message.author.mention} ตวงติงนักน้าาาาาา')
-                else:
+        fromChannel = self.get_channel(message.channel.id)
+        if (
+            fromChannel.id == self.music_channel_id
+            and message.author.id != self.user.id
+        ):
+            if message.content.startswith("!"):  # song specific cmds
+                args = message.content[1:].split()
+                cmd = args[0]
+                args = args[1:]
+
+                await message.delete(delay=0.1)
+
+                if cmd == "skip":
+                    song_no = int(args[0]) - 1
+                    if song_no == 0:
+                        self.voice_clients[0].stop()
+                    else:
+                        skipping_song = self.song_queue.pop(song_no)[1]
+                        try:
+                            os.remove(dirpath + "\\songs\\" + skipping_song)
+                        except:
+                            pass
+                        await self.update_song_list()
+                elif cmd == "volume":
                     try:
-                        thisnum = int(message.content[2:])
-                        if(thisnum == guessnumNumber):
-                            responses = ['เก่งสุด ๆ ไปเลยนะ','ว้าวซ่า','โห้ เก่งนี่หว่า']
-                            isGuessnumPlaying = False
-                            guessnumNumber = randint(1,1024)
-                            await fromChannel.send(f'{message.author.mention} {choose(responses)} เลขของผมคือ **{str(thisnum)}** ถูกต้องนะครับ')
-                        elif(thisnum > guessnumNumber):
-                            responses = ['เยอะเกิน ไอหนู','เยอะไปนะครับ','มากไปนะ','เยอะเกินครับ ลองใหม่ครับ']
-                            await fromChannel.send(f'{message.author.mention} {thisnum} {choose(responses)}')
-                        elif(thisnum < guessnumNumber):
-                            responses = ['น้อยไป ไอหนู','น้อยไปนะครับ','น้อยไปนะ','น้อยเกินครับ ลองใหม่ครับ']
-                            await fromChannel.send(f'{message.author.mention} {thisnum} {choose(responses)}')
-                    except Exception:
-                        await fromChannel.send(f'{message.author.mention} ขอจำนวนเต็มสิครับพรี่')
-        elif(message.content.startswith('!rps')):
-            if(message.content == '!rps'):
-                await fromChannel.send(f'อ้าวววว {message.author.mention} เจอได้นะครับบบบ :hammer: :scissors: :roll_of_paper:\n\
-พิม `!rps <ค้อน/กรรไกร/กระดาษ>` มาเป่ายิ้งฉุบกับเราได้เลย!\n\
-เราไม่โกงแน่นอน สาบานได้นะ!')
-            else:
-                realStuff = {
-                    0 : ':hammer:',
-                    1 : ':scissors:',
-                    2 : ':roll_of_paper:'
-                }
-                playerState = -1
-                if(message.content[4:]==' ค้อน'):
-                    playerState = 0
-                elif(message.content[4:]==' กรรไกร'):
-                    playerState = 1
-                elif(message.content[4:]==' กระดาษ'):
-                    playerState = 2
-                if(playerState == -1):
-                    await fromChannel.send(f'{message.author.mention} เอาซักอย่างครับ!! `ค้อน`, `กรรไกร` ไม่ก็ `กระดาษ`')
+                        args[0] = float(args[0])
+                    except:
+                        print("input error")
+                        return
+                    self.volume = args[0]
+                    dotenv.set_key(
+                        dotenv_path=dirpath + "\\.env",
+                        key_to_set="VOLUME",
+                        value_to_set=str(args[0]),
+                    )
+                    print(f"volume set to {self.volume}")
+
+            else:  # user requesting song via name
+                song_name = message.content
+                sender_voicestate = message.author.voice
+                await message.delete(delay=0.1)
+                if sender_voicestate is None:
+                    sent = await fromChannel.send(
+                        f"{message.author.mention} ไม่เข้ามาฟังด้วยกันหรอ ;w;"
+                    )
+                    await sent.delete(delay=5)
                     return
-                botState=randint(0,2)
-                text = f'{message.author.mention}\n{realStuff[playerState]}  :vs:  {realStuff[botState]} :exclamation:\n'
-                if(playerState == botState):
-                    responses = ['เสมอครับ! เอาใหม่ซักตามั้ยล่าาา','ฮึ่ยย่ะ! เสมอครับ','ว่าว เรียกได้ว่าเราเก่งเท่ากันได้มั้ยน้า']
-                    text += choose(responses)
-                elif(playerState == botState+1 or (playerState==0 and botState==2)):
-                    responses = ['ตานี้ชั้นขอละกัน! ฮ่าๆๆ','เย่ เลาชนะน้า','เย่ เลาชนะ ไม่เป็นไรน้าา']
-                    text += choose(responses)
-                elif(playerState+1 == botState or (playerState==2 and botState==0)):
-                    responses = ['โถ่เอ้ย! ฝากไว้ก่อนเถอะ...','ว้าว เก่งจัด ๆ เลยนะนายน่ะ','ง่าาา เก่งไป รับมั่ยดั้ย']
-                    text += choose(responses)
-                await fromChannel.send(text)
+                elif len(self.voice_clients) == 0:
+                    await sender_voicestate.channel.connect()
+                elif self.voice_clients[0].channel.id != sender_voicestate.channel.id:
+                    sent = await fromChannel.send(
+                        f"{message.author.mention} เข้ามาอยู่ด้วยกันก่อนมามะ"
+                    )
+                    await sent.delete(delay=5)
+                    return
+
+                # search music
+                download = await self.loop.run_in_executor(
+                    None, lambda: self.dl_song(song_name)
+                )
+
+                if download["download_ok"]:  # play music
+                    downloaded_path = os.path.join(
+                        dirpath, "songs", download["id"] + "." + download["ext"]
+                    )
+                    song = discord.PCMVolumeTransformer(
+                        discord.FFmpegPCMAudio(downloaded_path), self.volume
+                    )
+                    self.song_queue.append(
+                        (
+                            song,
+                            download["id"] + "." + download["ext"],
+                            download["title"],
+                        )
+                    )
+                    if not self.voice_clients[0].is_playing():
+                        self.voice_clients[0].play(song, after=self.get_next_song)
+                    await self.update_song_list()
+                else:  # error
+                    if download["error_on_search"]:
+                        sent = await fromChannel.send(
+                            f"{message.author.mention} ที่ขอมา (`{song_name}`) มันเสิร์ชไม่ได้งะ\n`{download['exception']}`"
+                        )
+                    else:
+                        sent = await fromChannel.send(
+                            f"{message.author.mention} ที่ขอมา (`{song_name}`)\nเจอเพลง `{download['title']}`\nแต่มันโหลดไม่ได้งะ`{download['exception']}`"
+                        )
+
+                    await sent.delete(delay=5)
+
+        elif message.content.startswith("!") and message.author.id != self.user.id:
+            args = message.content[1:].split()
+            cmd = args[0]
+            args = args[1:]
+            if cmd == "help":
+                if len(args) == 0:
+                    em = discord.Embed(
+                        title="สิ่งที่เราทำได้ตอนนี้อ่ะนะ :thinking:",
+                        description="มีเท่านี้แหละ\nไปสั่งคนทำมาเพิ่มฟีเจอร์เราสิ ;w;",
+                        author="Pica, pica!",
+                        colour=0xFFE770,
+                    )
+                    em.add_field(name="!help", value="ก็อันนี้นี่แหละ")
+                    em.add_field(
+                        name="!ดีมั้ย <คำถาม>/!ดีไหม <คำถาม>",
+                        value="เอาไว้ช่วยตัดสินใจอ่ะนะ",
+                    )
+                    em.add_field(
+                        name="!role", value="ช่วยตัดสินใจว่าเล่นตำแหน่งไรดี (RoV)"
+                    )
+                    em.add_field(name="!ping", value="เช็คปิงบอทเฉย ๆ น่ะ")
+                    em.add_field(name="!guessnum", value="เล่นทายเลขขำ ๆ กับน้อนบอท")
+                    em.add_field(name="!rps", value="เล่นเป่ายิ้งฉุบขำ ๆ กับน้อนบอท")
+                    em.add_field(
+                        name="!coolApostrophe",
+                        value="ส่งตัว ` ให้ใช้เฉยๆ ไม่มีไร ส่งในแชทส่วนตัวน่ะ",
+                    )
+                    em.add_field(
+                        name="!lobby",
+                        value="ตั้งตี้เล่นเกม ตอนนี้มีแค่ rov มีคำสั่งอีกมากมาย ลอง `!lobby help` ดูนะ",
+                    )
+                    em.add_field(
+                        name="!random <เกม>",
+                        value="ไม่รู้จะเล่นไรดี ใช้นี่ได้ (ตอนนี้ซัพพอร์ท Valorant เกมเดียว)",
+                    )
+                    em.add_field(
+                        name="!together <activity>",
+                        value="สร้างลิงค์ together <activity> จะมี `youtube`, `poker`, `chess`, `betrayal`, `fishing`, `letter-tile`, `word-snack`, `doodle-crew`, `spellcast`, `awkword`, `checkers`",
+                    )
+                    # ----------------------- add help here --------------------------
+                    await fromChannel.send(content=None, embed=em)
+                elif args[0] == "admin":
+                    em = discord.Embed(
+                        title="คำสั่งสำหรับแอดมินจ้า",
+                        author="differtail",
+                        colour=0xFFE770,
+                    )
+                    em.add_field(
+                        name="!guessnum reset", value="รีเซตเกมทายเลขถ้ามันพัง"
+                    )
+                    em.add_field(
+                        name="!say <ข้อความ>", value="บอทพูด<ข้อความ>ในช่อง system"
+                    )
+                    em.add_field(name="!react <channel_id> <reaction_id>")
+                    em.add_field(name="!reboot", value="รีสาร์ทบอท")
+
+                    # -------------------------add admin commands help here-----------------------
+                    await fromChannel.send(content=None, embed=em)
+
+            elif cmd == "ดีมั้ย" or cmd == "ดีไหม":
+                if len(args) == 0:
+                    await fromChannel.send(message.author.mention + " อะไรเล่า!?")
+                    return
+                responses = [
+                    "เอาดิ",
+                    "จัดไปอย่าให้เสีย",
+                    "เรื่องนี้มันก็แน่อยู่แล้วปะวะ",
+                    "จะถามอย่างงั้นจริงๆ หรอ",
+                    "ไม่แน่ใจเท่าไหร่ว่ะ",
+                    "ห้ะ?",
+                    "ไม่ดีกว่า",
+                    "อย่าเลยเพื่อน",
+                    "ถ้าอยากมีความสุขก็อย่าเถอะ",
+                ]
+                await fromChannel.send(message.author.mention + " " + choice(responses))
+            elif cmd == "hi":
+                responses = [
+                    "สวัสดี! ",
+                    "สวัสดีจ้า ",
+                    "ฮ้ายฮายย~ ",
+                    "เห็นโล่วเจ้า ",
+                    "ว่างาย ",
+                    "Bonjour! ",
+                    "안녕 ",
+                ]
+                await fromChannel.send(
+                    choice(responses) + ":wave: " + message.author.mention
+                )
+            elif cmd == "role":
+                responses = [
+                    "แครี่ดิวะ",
+                    "คนไทยหัวใจแครี่สิดี",
+                    "แครี่ที่ดีต้องเป็นคุณ",
+                    "ทีมต้องการแครี่!",
+                    "โรมมิ่งวิ่งแก้งไปสิ",
+                    "โรมไปนะเพื่อน",
+                    "ไปซัพแครี่ซะนะ",
+                    "ทีมต้องการโรม!",
+                    "เมจเก่งไม่ใช่หรอเราอ่ะ",
+                    "ไปโยนสกิลใส่เลนกลางเล้ยยยยย",
+                    "อย่างงี้ต้องเดินทางสายกลาง",
+                    "ทีมต้องการเมจ!",
+                    "ไปเก็บตังในป่าซะ",
+                    "ป่าน่าจะเหมาะสุดนะจังหวะนี้",
+                    "ทีมมันกาก ต้องเล่นป่าไปแบกสิ",
+                    "ทีมต้องการป่า!",
+                    "ไปเฝ้าป้อมเล่นด้าคให้หน่อยสิ",
+                    "จงไปเลนดาร์คซะ",
+                    "เป็นแท้งให้ทีมสิดี",
+                    "ทีมต้องการแท้ง!",
+                ]
+                await fromChannel.send(message.author.mention + " " + choice(responses))
+            elif cmd == "lobby":
+                global lobby, lobbyCreated, lobbyCreator
+                if len(args) == 0:
+                    await fromChannel.send(
+                        message.author.mention + " ถ้าใช้ยังไม่เป็น ลอง !lobby help น้า"
+                    )
+                elif args[0] == "reset":
+                    if not isAdmin(message.author, fromChannel):
+                        await fromChannel.send(
+                            f"{message.author.mention} อันนี้แอดมินใช้เท่านั้นน้าา"
+                        )
+                    else:
+                        lobbyCreator = ""
+                        lobbyCreated = False
+                        lobby = []
+                        await fromChannel.send(
+                            f"รีเซตห้องล็อบบี้ตี้เกมตีป้อมแล้วจ้า\nคำสั่งถูกสั่งโดย {message.auther.mention}"
+                        )
+                elif args[0] == "help":
+                    em = discord.Embed(
+                        title="!lobby",
+                        description="วิธีใช้ `!lobby` นะครับทุกทั่น  :100:\n:rainbow: คำสั่งต่อไปนี้พิมต่อจาก `!lobby` เว้นด้วย 1 เว้นวรรคนะ :rainbow:",
+                        author="Pica, pica!",
+                        colour=0xF5AD42,
+                    )
+                    em.add_field(name="help", value="ก็อันนี้นี่แหละ")
+                    em.add_field(
+                        name="create random",
+                        value="สร้างตี้แบบสุ่มตำแหน่งให้ คือบอทจะสุ่มตำแหน่งให้แต่ละคนอ่ะ สร้างได้ทีละห้องนะ!!",
+                    )
+                    em.add_field(
+                        name="join", value="เข้าห้องที่สร้างอยู่ตอนนี้ ถ้ามีอ่ะนะ"
+                    )
+                    await fromChannel.send(content=None, embed=em)
+                elif args[0] == "create":
+                    if args[1] == "random":
+                        if lobbyCreated:
+                            await fromChannel.send(
+                                message.author.mention
+                                + f" {lobbyCreator} สร้างล็อบบี้ไปแล้วน้า"
+                            )
+                        else:
+                            lobbyCreator = message.author.name
+                            lobby.append(message.author.id)
+                            lobbyCreated = True
+                            await fromChannel.send(
+                                "ล็อบบี้ถูกสร้างโดย "
+                                + message.author.mention
+                                + " เรียบร้อยแน้ว!"
+                            )
+                elif args[0] == "join":
+                    if lobbyCreated:
+                        if message.author.id in lobby:
+                            await fromChannel.send(
+                                message.author.mention
+                                + " พี่อยู่ในล็อบบี้อยู่แล้วง่าาา"
+                            )
+                            return
+                        lobby.append(message.author.id)
+                        msg = ""
+                        for peopleInd in range(len(lobby)):
+                            msg += f"{peopleInd+1} - {discord.Client.get_user(self,lobby[peopleInd]).mention}\n"
+                        await fromChannel.send(
+                            "เพิ่ม "
+                            + message.author.mention
+                            + " เข้าล็อบบี้แบ้วฮับ!\nตอนนี้สมาชิกตี้มี:\n"
+                            + msg
+                        )
+                        if len(lobby) == 5:
+                            shuffle(lobby)
+                            await fromChannel.send(
+                                "ล็อบบี้เต็มละน้าา ผลสุ่มก็คื๊ออออ:\n"
+                                + discord.Client.get_user(self, lobby[0]).mention
+                                + " ไปเลนดาร์คน้า\n"
+                                + discord.Client.get_user(self, lobby[1]).mention
+                                + " ฟามป่าเลยจ้า\n"
+                                + discord.Client.get_user(self, lobby[2]).mention
+                                + " ไปโยนสกิลในเลนกลางน้า\n"
+                                + discord.Client.get_user(self, lobby[3]).mention
+                                + " แบกทีมด้วยแครี่ในเลนมังกรไปเลยยยย\n"
+                                + discord.Client.get_user(self, lobby[4]).mention
+                                + " นายจะได้เป็นโรมที่ดีที่สุดในทีม!\nEnjoy~"
+                            )
+                            lobby.clear()
+                            lobbyCreated = False
+                    else:
+                        await fromChannel.send(
+                            message.author.mention
+                            + " ล็อบบี้ยังเคยไม่เคยสร้างง่า ลอง !lobby create random ดูเสะ"
+                        )
+                return
+            elif cmd == "ping":
+                await fromChannel.send(
+                    message.author.mention
+                    + " ป๊อง! "
+                    + str(round(self.latency * 1000))
+                    + " ms"
+                )
+            elif cmd == "bye":
+                responses = [
+                    "บ้ายบายยยย ",
+                    "ลาก่อยยยย ",
+                    "แจปืนนนน ",
+                    "ไว้เจอกันค้าบบ ",
+                    "โชคดีน้าาา ",
+                ]
+                await fromChannel.send(
+                    choice(responses) + ":wave: " + message.author.mention
+                )
+            elif cmd == "guessnum":
+                global isGuessnumPlaying, guessnumPlayer, guessnumPlayerID, guessnumNumber
+                if args and args[0] == "reset":
+                    if not isAdmin(message.author, fromChannel):
+                        await fromChannel.send(
+                            f"{message.author.mention} อันนี้แอดมินใช้เท่านั้นน้าา"
+                        )
+                        return
+                    else:
+                        isGuessnumPlaying = False
+                        guessnumPlayer = ""
+                        guessnumPlayerID = ""
+                        guessnumNumber = randint(1, 1024)
+                        await fromChannel.send(f"รีเซ็ตเกมทายเลขละจ้า")
+                        return
+                elif isGuessnumPlaying:
+                    if message.author.id != guessnumPlayerID:
+                        await fromChannel.send(
+                            f"{message.author.mention} กำลังเล่นกับ {guessnumPlayer} อยู่ง่าาาาา"
+                        )
+                    else:
+                        await fromChannel.send(
+                            f"{message.author.mention} ทายมาสิครับ รออะไร!?"
+                        )
+                elif not isGuessnumPlaying:
+                    isGuessnumPlaying = True
+                    guessnumPlayer = message.author.name
+                    guessnumPlayerID = message.author.id
+                    await fromChannel.send(
+                        f"**ก็มาดิครับ** {message.author.mention} :exclamation:\n\
+                        :question: **วิธีเล่น** :question:\n\
+                        เราจะให้นายทายเลขที่เราคิดไว้ มีค่า `1` ถึง `1024`\n\
+                        พิมพ์ว่า `!? <ตัวเลข>` - ทายว่าใช่เลขนี้มั้ย\n\
+                        แล้วเราจะบอกว่าใช่, น้อยกว่า, หรือมากกว่าเลขของเรา"
+                    )
+            elif cmd == "?":
+                if not isGuessnumPlaying or message.author.id != guessnumPlayerID:
+                    await fromChannel.send(
+                        f"อยากเล่นหรอครับคุณ {message.author.mention} พิม `!guessnum` ก่อนนะครับ ไม่ก็รอคนอื่นเล่นจบก่อนน้า"
+                    )
+                else:
+                    if len(args) == 0:
+                        await fromChannel.send(
+                            f"ทายมาสิครับ รออยู่นะ! {message.author.mention}"
+                        )
+                    elif args[0] == "<ตัวเลข>":
+                        await fromChannel.send(
+                            f"{message.author.mention} ตวงติงนักน้าาาาาา"
+                        )
+                    else:
+                        try:
+                            thisnum = int(args[0])
+                        except ValueError:
+                            await fromChannel.send(
+                                f"{message.author.mention} ขอเป็นจำนวนเต็มครับพรี่"
+                            )
+                        else:
+                            if thisnum == guessnumNumber:
+                                responses = [
+                                    "เก่งสุด ๆ ไปเลยนะ",
+                                    "ว้าวซ่า",
+                                    "โห้ เก่งนี่หว่า",
+                                ]
+                                isGuessnumPlaying = False
+                                guessnumNumber = randint(1, 1024)
+                                await fromChannel.send(
+                                    f"{message.author.mention} {choice(responses)} เลขของผมคือ **{str(thisnum)}** ถูกต้องนะครับ"
+                                )
+                            elif thisnum > guessnumNumber:
+                                responses = [
+                                    "เยอะเกิน ไอหนู",
+                                    "เยอะไปนะครับ",
+                                    "มากไปนะ",
+                                    "เยอะเกินครับ ลองใหม่ครับ",
+                                ]
+                                await fromChannel.send(
+                                    f"{message.author.mention} {thisnum} {choice(responses)}"
+                                )
+                            elif thisnum < guessnumNumber:
+                                responses = [
+                                    "น้อยไป ไอหนู",
+                                    "น้อยไปนะครับ",
+                                    "น้อยไปนะ",
+                                    "น้อยเกินครับ ลองใหม่ครับ",
+                                ]
+                                await fromChannel.send(
+                                    f"{message.author.mention} {thisnum} {choice(responses)}"
+                                )
+            elif cmd == "rps":
+                if len(args) == 0:
+                    await fromChannel.send(
+                        f"อ้าวววว {message.author.mention} เจอได้นะครับบบบ :hammer: :scissors: :roll_of_paper:\n\
+                        พิม `!rps <ค้อน/กรรไกร/กระดาษ>` มาเป่ายิ้งฉุบกับเราได้เลย!\n\
+                        เราไม่โกงแน่นอน สาบานได้นะ!"
+                    )
+                else:
+                    realStuff = {0: ":hammer:", 1: ":scissors:", 2: ":roll_of_paper:"}
+                    playerState = -1
+                    if args[0] == "ค้อน":
+                        playerState = 0
+                    elif args[0] == " กรรไกร":
+                        playerState = 1
+                    elif args[0] == " กระดาษ":
+                        playerState = 2
+                    if playerState == -1:
+                        await fromChannel.send(
+                            f"{message.author.mention} เอาซักอย่างครับ!! `ค้อน`, `กรรไกร` ไม่ก็ `กระดาษ`"
+                        )
+                        return
+                    botState = randint(0, 2)
+                    text = f"{message.author.mention}\n{realStuff[playerState]}  :vs:  {realStuff[botState]} :exclamation:\n"
+                    if playerState == botState:
+                        responses = [
+                            "เสมอครับ! เอาใหม่ซักตามั้ยล่าาา",
+                            "ฮึ่ยย่ะ! เสมอครับ",
+                            "ว่าว เรียกได้ว่าเราเก่งเท่ากันได้มั้ยน้า",
+                        ]
+                        text += choice(responses)
+                    elif playerState == botState + 1 or (
+                        playerState == 0 and botState == 2
+                    ):
+                        responses = [
+                            "ตานี้ชั้นขอละกัน! ฮ่าๆๆ",
+                            "เย่ เลาชนะน้า",
+                            "เย่ เลาชนะ ไม่เป็นไรน้าา",
+                        ]
+                        text += choice(responses)
+                    elif playerState + 1 == botState or (
+                        playerState == 2 and botState == 0
+                    ):
+                        responses = [
+                            "โถ่เอ้ย! ฝากไว้ก่อนเถอะ...",
+                            "ว้าว เก่งจัด ๆ เลยนะนายน่ะ",
+                            "ง่าาา เก่งไป รับมั่ยดั้ย",
+                        ]
+                        text += choice(responses)
+                    await fromChannel.send(text)
+            elif cmd == "coolApostrophe":
+                await message.author.send(f"รับไปซะ อะโฟสโตฟี่เท่มากๆ `")
+            elif cmd == "random" or cmd == "สุ่มตัว":
+                all_chars = None
+                if args[0].lower() in {
+                    "valo",
+                    "วาโล",
+                    "valorant",
+                    "วาโลแร้น",
+                    "วาโลแรนท์",
+                }:
+                    all_chars = [
+                        "Brimstone",
+                        "Viper",
+                        "Omen",
+                        "Killjoy",
+                        "Cypher",
+                        "Sova",
+                        "Sage",
+                        "Phoenix",
+                        "Jett",
+                        "Reyna",
+                        "Raze",
+                        "Breach",
+                        "Skye",
+                        "Yoru",
+                        "Astra",
+                        "Kay/O",
+                        "Chamber",
+                    ]
+                if all_chars is not None:
+                    await fromChannel.send(
+                        f"{message.author.mention} {choice(all_chars)} ไป"
+                    )
+                else:
+                    await fromChannel.send(
+                        'f"{message.author.mention} เกมไรอะ ไม่รุจัก'
+                    )
+            elif cmd == "together":
+                if message.author.voice:
+                    if args and args[0] in [
+                        "youtube",
+                        "poker",
+                        "chess",
+                        "betrayal",
+                        "fishing",
+                        "letter-tile",
+                        "word-snack",
+                        "doodle-crew",
+                        "spellcast",
+                        "awkword",
+                        "checkers",
+                    ]:
+                        link = await self.discord_together.create_link(
+                            message.author.voice.channel.id, args[0]
+                        )
+                        await fromChannel.send(
+                            f"ลิ้งเปิดห้องตรงนี้เลยจ้า คนแรกคลิกที่ลิงค์ก่อนนะ คนอื่นถึงจะกด Play ได้ แต่ก็คลิกลิงค์ได้เหมือนกัน\n{link}"
+                        )
+                    else:
+                        await fromChannel.send(
+                            f"{message.author.mention} พิมงี้นะจ๊ะ `!together <activity>` <activity> จะมี\n\
+                            :white_small_square:  `youtube` **->** Youtube watch party :arrow_forward:\n\
+                            :white_small_square:  `poker` **->** Poker night :black_joker:\n\
+                            :white_small_square:  `chess` **->** Chess in the Park\n\
+                            :white_small_square:  `betrayal` **->** Betrayal.io\n\
+                            :white_small_square:  `fishing` **->** Fishington.io\n\
+                            :white_small_square:  `letter-tile` **->** Letter Tile\n\
+                            :white_small_square:  `word-snack` **->** Word Snack\n\
+                            :white_small_square:  `doodle-crew` **->** Doodle Crew\n\
+                            :white_small_square:  `spellcast` **->** SpellCast\n\
+                            :white_small_square:  `awkword` **->** Awkword\n\
+                            :white_small_square:  `checkers` **->** Checkers in the Park\n\
+                            ถ้าจะถามว่านอกจากยูทูปกับโป้กเก้อคือไร บอกเลยว่า ไม่รู้"
+                        )
+                else:
+                    await fromChannel.send(
+                        f"{message.author.mention} เข้าห้องเสียงซักห้องก่อนน้า"
+                    )
+            # ------------------- admin commands --------------------------
+            elif cmd == "say":
+                args = message.content.split(" ", 2)[1:]
+                if (
+                    not isAdmin(message.author, fromChannel)
+                    or message.guild.system_channel is None
+                ):
+                    return
+                channel_to_send = message.guild.get_channel(int(args[0]))
+                messageToSend = args[1]
+                messageToSend = messageToSend.replace("<!code!>", "```")
+                messageToSend = messageToSend.replace("<!strikethrough!>", "~~")
+                await channel_to_send.send(messageToSend)
+            elif cmd == "react":
+                if not isAdmin(message.author, fromChannel):
+                    return
+                channel_to_react = message.guild.get_channel(int(args[0]))
+                msg_to_react = channel_to_react.get_partial_message(int(args[1]))
+                try:
+                    await msg_to_react.add_reaction(args[2])
+                except discord.Forbidden:
+                    print(f"reaction {args[2]} to guild {message.guild} was forbidden!")
+                except:
+                    print(
+                        f"reaction {args[2]} to guild {message.guild} on channel {channel_to_react} was not successful (maybe emoji not found?)"
+                    )
+            elif cmd == "reboot":
+                if not isAdmin(message.author, fromChannel):
+                    await fromChannel.send(
+                        f"{message.author.mention} อันนี้แอดมินใช้เท่านั้นน้าา"
+                    )
+                else:
+                    do_reboot()
+
+        # --------------------- voice commands ------------------------
+
         return
 
-    
-    async def on_member_update(self, memBef, memAft):
-        if(str(memBef.id) == MY_ID):
-            if(memAft.status==discord.Status.idle):
-                await self.change_presence(status=discord.Status.idle,activity=discord.Activity(name='@Differential sleep',type=discord.ActivityType.watching))
-            elif(memAft.status==discord.Status.dnd):
-                await self.change_presence(status=discord.Status.dnd,activity=discord.Activity(name='@Differential being busy',type=discord.ActivityType.watching))
+    async def on_raw_reaction_add(self, reactionAdded):
+        if reactionAdded.user_id == BOT_ID:
+            return  # dont do shit if bot itself added that
+
+        if reactionAdded.message_id == selfRoleMsgID:
+            role_to_add = discord.Object(-1)  # empty object for now
+            if reactionAdded.emoji.name in self_role_emojis:
+                role_to_add.id = self_role_ids[reactionAdded.emoji.name]
+            if role_to_add.id != -1:
+                await reactionAdded.member.add_roles(role_to_add)  # add the role
+                print(
+                    f"{reactionAdded.member.name} reacted {reactionAdded.emoji.name} for role {role_to_add.id}"
+                )
             else:
-                await self.change_presence(status=discord.Status.online,activity=discord.Game(name='with @Differential'))
+                this_message = self.get_channel(
+                    reactionAdded.channel_id
+                ).get_partial_message(selfRoleMsgID)
+                await this_message.remove_reaction(
+                    reactionAdded.emoji, discord.Object(reactionAdded.user_id)
+                )  # not defined emote, remove that reaction
+
+        elif reactionAdded.message_id == self.music_message_id:
+            if reactionAdded.emoji.name == "⏮️":
+                if len(self.voice_clients) > 0:
+                    playing = (
+                        discord.PCMVolumeTransformer(
+                            discord.FFmpegPCMAudio(
+                                dirpath + "\\songs\\" + self.song_queue[0][1]
+                            ),
+                            self.volume,
+                        ),
+                        self.song_queue[0][1],
+                    )
+                    self.song_queue.insert(1, playing)
+                    self.remove_song = False
+                    self.voice_clients[0].stop()
+                else:
+                    print("not in a voice channel")
+            elif reactionAdded.emoji.name == "⏯️":
+                if len(self.voice_clients) == 0:
+                    await reactionAdded.member.voice.channel.connect()
+                if len(self.voice_clients) > 0:
+                    if self.voice_clients[0].is_playing():
+                        self.voice_clients[0].pause()
+                    elif self.voice_clients[0].is_paused():
+                        self.voice_clients[0].resume()
+                    else:
+                        print("not playing nor paused")
+            elif reactionAdded.emoji.name == "⏭️":
+                if len(self.voice_clients) > 0:
+                    print(f"Skipping song {self.song_queue[0][2]}!")
+                    self.voice_clients[0].stop()
+                else:
+                    print("not in a voice channel")
+            elif reactionAdded.emoji.name == "📴":
+                print("exit voice ch cmd issued")
+                if len(self.voice_clients) > 0:
+                    for song in self.song_queue[1:]:
+                        os.remove(dirpath + "\\songs\\" + song[1])
+                    if (
+                        self.voice_clients[0].is_playing()
+                        or self.voice_clients[0].is_paused()
+                    ):
+                        self.voice_clients[0].stop()
+                    self.song_queue = []
+                    await self.update_song_list()
+                    await self.voice_clients[0].disconnect()
+            elif reactionAdded.emoji.name == "💱":
+                if self.voice_clients:
+                    if reactionAdded.member.voice is not None:
+                        await self.voice_clients[0].move_to(
+                            reactionAdded.member.voice.channel
+                        )
+                elif reactionAdded.member.voice is not None:
+                    await reactionAdded.member.voice.channel.connect()
+            this_message = self.get_channel(
+                reactionAdded.channel_id
+            ).get_partial_message(reactionAdded.message_id)
+            await this_message.remove_reaction(
+                reactionAdded.emoji, discord.Object(reactionAdded.user_id)
+            )
+
+        return
+
+    async def on_raw_reaction_remove(self, reactionRemoved):
+        if reactionRemoved.message_id == selfRoleMsgID:
+            role_to_remove = discord.Object(-1)  # empty object for now
+            if reactionRemoved.emoji.name in self_role_emojis:
+                role_to_remove.id = self_role_ids[reactionRemoved.emoji.name]
+
+            if role_to_remove.id != -1:
+                this_member = self.get_guild(my_server_id).get_member(
+                    reactionRemoved.user_id
+                )
+                if this_member is not None:
+                    await this_member.remove_roles(role_to_remove)  # remove the role
+                    print(
+                        f"{this_member.name} un-reacted {reactionRemoved.emoji.name} for role {role_to_remove.id}"
+                    )
+
+        return
+
+    async def on_member_update(self, memBef, memAft):
+        if memBef.id == MY_ID:
+            if memAft.status == discord.Status.idle:
+                await self.change_presence(
+                    status=discord.Status.idle,
+                    activity=discord.Activity(
+                        name="@Differential sleep", type=discord.ActivityType.watching
+                    ),
+                )
+            elif memAft.status == discord.Status.dnd:
+                await self.change_presence(
+                    status=discord.Status.dnd,
+                    activity=discord.Activity(
+                        name="@Differential being busy",
+                        type=discord.ActivityType.watching,
+                    ),
+                )
+            else:
+                await self.change_presence(
+                    status=discord.Status.online,
+                    activity=discord.Game(name="with @Differential"),
+                )
+        return
 
 
-client = myClient()
+new_intent = discord.Intents().default()
+new_intent.members = True
+client = myClient(intents=new_intent)
 client.run(TOKEN)
+
+input("Client stopped running, press anything to quit...")
+
