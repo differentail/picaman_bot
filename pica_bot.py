@@ -44,7 +44,7 @@ guessnumPlayer = ""
 guessnumPlayerID = ""
 guessnumCount = 0
 ydl_opts = {
-    "outtmpl": f"{dirpath}/songs/%(id)s.%(ext)s",
+    "outtmpl": "%(id)s.%(ext)s",
     "format": "bestaudio",
     "default_search": "ytsearch",
 }
@@ -70,8 +70,7 @@ class Song:
     def copy(self, volume):
         return Song(
             discord.PCMVolumeTransformer(
-                discord.FFmpegPCMAudio(os.path.join(dirpath, "songs", self.file_name)),
-                volume,
+                discord.FFmpegPCMAudio(self.file_name), volume,
             ),
             self.file_name,
             self.title,
@@ -226,7 +225,7 @@ class myClient(discord.Client):
 
         if self.remove_song and last_song_file_name is not None:
             try:
-                os.remove(os.path.join(dirpath, "songs", last_song_file_name))
+                os.remove(last_song_file_name)
             except Exception as e:
                 print("cant remove file", last_song_file_name, "\n", "Error:", e)
         else:
@@ -270,9 +269,7 @@ class myClient(discord.Client):
                     else:
                         skipping_song_file_name = self.song_queue.pop(song_no).file_name
                         try:
-                            os.remove(
-                                os.path.join(dirpath, "songs", skipping_song_file_name)
-                            )
+                            os.remove(skipping_song_file_name)
                         except Exception as e:
                             print(
                                 "cant remove file",
@@ -321,9 +318,7 @@ class myClient(discord.Client):
                 )
 
                 if download["download_ok"]:  # play music
-                    downloaded_path = os.path.join(
-                        dirpath, "songs", download["id"] + "." + download["ext"]
-                    )
+                    downloaded_path = download["id"] + "." + download["ext"]
                     song = Song(
                         discord.PCMVolumeTransformer(
                             discord.FFmpegPCMAudio(downloaded_path), self.volume
@@ -881,7 +876,7 @@ class myClient(discord.Client):
                 if len(self.voice_clients) > 0:
                     for song in self.song_queue[1:]:
                         song.player = None
-                        os.remove(os.path.join(dirpath, "songs", song.file_name))
+                        os.remove(song.file_name)
                     self.song_queue = self.song_queue[:1]
                     if (
                         self.voice_clients[0].is_playing()
