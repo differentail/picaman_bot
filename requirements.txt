@@ -1,5 +1,6 @@
 asyncio
 discord
 aioconsole
+python-dotenv
 youtube_dl
 discord_together
