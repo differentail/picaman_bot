@@ -7,11 +7,9 @@ import aioconsole
 import dotenv
 import youtube_dl
 import discord_together
-import stat
 from discord.errors import ClientException, Forbidden
 from dotenv import load_dotenv
 from random import randint, shuffle, choice
-from ctypes.util import find_library
 
 
 def isAdmin(messageSender, fromChannel):
@@ -162,11 +160,6 @@ class myClient(discord.Client):
         self.remove_song = True
         self.discord_together = await discord_together.DiscordTogether(TOKEN)
         await self.update_song_list()
-        print("loading opus")
-        if not discord.opus.is_loaded():
-            discord.opus.load_opus(find_library("libopus.so.1"))
-        else:
-            print("opus already loaded")
         print("creating song directory")
         try:
             os.umask(0)
@@ -323,7 +316,7 @@ class myClient(discord.Client):
                     downloaded_path = download["id"] + "." + download["ext"]
                     song = Song(
                         discord.PCMVolumeTransformer(
-                            discord.FFmpegPCMAudio(downloaded_path), self.volume
+                            discord.FFmpegOpusAudio(downloaded_path), self.volume
                         ),
                         download["id"] + "." + download["ext"],
                         download["title"],
