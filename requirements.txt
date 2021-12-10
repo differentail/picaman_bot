@@ -1,6 +1,8 @@
 asyncio
-discord
+discord.py
 aioconsole
 python-dotenv
+PyNaCl
 youtube_dl
 discord_together
+aiohttp
