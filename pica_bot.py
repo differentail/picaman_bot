@@ -163,8 +163,10 @@ class myClient(discord.Client):
         self.discord_together = await discord_together.DiscordTogether(TOKEN)
         await self.update_song_list()
         print("loading opus")
-        if discord.opus.is_loaded():
+        if not discord.opus.is_loaded():
             discord.opus.load_opus(find_library("libopus"))
+        else:
+            print("opus already loaded")
         print("creating song directory")
         try:
             os.umask(0)
