@@ -169,8 +169,8 @@ class myClient(discord.Client):
         print("creating song directory")
         try:
             os.umask(0)
-            os.mkdir(os.path.join(dirpath, "songs"), 0o777)
-            os.chmod(os.path.join(dirpath, "songs"), 0o777)
+            os.mkdir(os.path.join(dirpath, "songs"), mode=0o777)
+            os.chmod(os.path.join(dirpath, "songs"), mode=0o777)
         except FileExistsError:
             print("song directory already exists")
         print("checking for self role changes")
