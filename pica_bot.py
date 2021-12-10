@@ -67,9 +67,7 @@ class Song:
 
     def copy(self, volume):
         return Song(
-            discord.PCMVolumeTransformer(
-                discord.FFmpegPCMAudio(self.file_name), volume,
-            ),
+                discord.FFmpegPCMAudio(self.file_name),
             self.file_name,
             self.title,
         )
@@ -314,10 +312,7 @@ class myClient(discord.Client):
 
                 if download["download_ok"]:  # play music
                     downloaded_path = download["id"] + "." + download["ext"]
-                    song = Song(
-                        discord.PCMVolumeTransformer(
-                            discord.FFmpegOpusAudio(downloaded_path), self.volume
-                        ),
+                    song = Song(discord.FFmpegOpusAudio(downloaded_path),
                         download["id"] + "." + download["ext"],
                         download["title"],
                     )
