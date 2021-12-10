@@ -955,5 +955,5 @@ new_intent.members = True
 client = myClient(intents=new_intent)
 client.run(TOKEN)
 
-input("Client stopped running, press anything to quit...")
+print("Client stopped running, press anything to quit...")
 
