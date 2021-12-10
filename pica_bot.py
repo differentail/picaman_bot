@@ -168,8 +168,9 @@ class myClient(discord.Client):
             discord.opus.load_opus(find_library("libopus"))
         print("creating song directory")
         try:
-            os.mkdir(os.path.join(dirpath, "songs"), stat.S_IWRITE | stat.S_IREAD)
-            os.chmod(os.path.join(dirpath, "songs"), stat.S_IWRITE | stat.S_IREAD)
+            os.umask(0)
+            os.mkdir(os.path.join(dirpath, "songs"), 0o777)
+            os.chmod(os.path.join(dirpath, "songs"), 0o777)
         except FileExistsError:
             print("song directory already exists")
         print("checking for self role changes")
