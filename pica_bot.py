@@ -7,6 +7,7 @@ import aioconsole
 import dotenv
 import youtube_dl
 import discord_together
+import stat
 from discord.errors import ClientException, Forbidden
 from dotenv import load_dotenv
 from random import randint, shuffle, choice
@@ -167,7 +168,7 @@ class myClient(discord.Client):
             discord.opus.load_opus(find_library("libopus"))
         print("creating song directory")
         try:
-            os.mkdir(os.path.join(dirpath, "songs"))
+            os.mkdir(os.path.join(dirpath, "songs"), stat.S_IRUSR ^ stat.S_IWUSR)
         except FileExistsError:
             print("song directory already exists")
         print("checking for self role changes")
@@ -346,7 +347,7 @@ class myClient(discord.Client):
                             f"{message.author.mention} ที่ขอมา (`{song_name}`)\nเจอเพลง `{download['title']}`\nแต่มันโหลดไม่ได้งะ`{download['exception']}`"
                         )
 
-                    await sent.delete(delay=5)
+                    await sent.delete(delay=10)
 
         elif message.content.startswith("!") and message.author.id != self.user.id:
             args = message.content[1:].split()
