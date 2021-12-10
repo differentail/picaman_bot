@@ -162,8 +162,14 @@ class myClient(discord.Client):
         self.remove_song = True
         self.discord_together = await discord_together.DiscordTogether(TOKEN)
         await self.update_song_list()
+        print("loading ops")
         if discord.opus.is_loaded():
             discord.opus.load_opus(find_library("libopus"))
+        print("creating song directory")
+        try:
+            os.mkdir(os.path.join(dirpath, "songs"))
+        except FileExistsError:
+            print("song directory already exists")
         print("checking for self role changes")
         my_server = self.get_guild(my_server_id)
 
@@ -200,7 +206,7 @@ class myClient(discord.Client):
         # ------------ done checking self role adding --------------
 
         print("ready!")
-        await self.wait_for_input()
+        # await self.wait_for_input()
         return
 
     def get_next_song(self, error):
