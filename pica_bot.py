@@ -10,6 +10,7 @@ import discord_together
 from discord.errors import ClientException, Forbidden
 from dotenv import load_dotenv
 from random import randint, shuffle, choice
+from ctypes.util import find_library
 
 
 def isAdmin(messageSender, fromChannel):
@@ -42,7 +43,7 @@ guessnumPlayer = ""
 guessnumPlayerID = ""
 guessnumCount = 0
 ydl_opts = {
-    "outtmpl": f"{dirpath}\\songs\\%(id)s.%(ext)s",
+    "outtmpl": f"{dirpath}/songs/%(id)s.%(ext)s",
     "format": "bestaudio",
     "default_search": "ytsearch",
 }
@@ -68,7 +69,8 @@ class Song:
     def copy(self, volume):
         return Song(
             discord.PCMVolumeTransformer(
-                discord.FFmpegPCMAudio(dirpath + "\\songs\\" + self.file_name), volume,
+                discord.FFmpegPCMAudio(os.path.join(dirpath, "songs", self.file_name)),
+                volume,
             ),
             self.file_name,
             self.title,
@@ -160,7 +162,8 @@ class myClient(discord.Client):
         self.remove_song = True
         self.discord_together = await discord_together.DiscordTogether(TOKEN)
         await self.update_song_list()
-
+        if self.opus.is_loaded():
+            self.opus.load_opus(find_library("libopus"))
         print("checking for self role changes")
         my_server = self.get_guild(my_server_id)
 
@@ -196,22 +199,6 @@ class myClient(discord.Client):
                     print(f"removed {reaction.emoji.name}'s role to {member.name}")
         # ------------ done checking self role adding --------------
 
-        # ------------ checking for self role removing -------------
-        """
-        for reaction in self_role_message.reactions:
-            if reaction.emoji.name in self_role_emojis:
-                senders = await reaction.users().flatten()
-                for member in list_diff(
-                    my_server.get_role(self_role_ids[reaction.emoji.name]).members,
-                    senders,
-                ):
-                    if member.id != BOT_ID:
-                        await member.remove_roles(
-                            discord.Object(self_role_ids[reaction.emoji.name])
-                        )
-                        print(f"removed {reaction.emoji.name}'s role to {user.name}")
-        """
-        # ------------ done checking for self role removing --------
         print("ready!")
         await self.wait_for_input()
         return
@@ -230,7 +217,7 @@ class myClient(discord.Client):
 
         if self.remove_song and last_song_file_name is not None:
             try:
-                os.remove(dirpath + "\\songs\\" + last_song_file_name)
+                os.remove(os.path.join(dirpath, "songs", last_song_file_name))
             except Exception as e:
                 print("cant remove file", last_song_file_name, "\n", "Error:", e)
         else:
@@ -274,7 +261,9 @@ class myClient(discord.Client):
                     else:
                         skipping_song_file_name = self.song_queue.pop(song_no).file_name
                         try:
-                            os.remove(dirpath + "\\songs\\" + skipping_song_file_name)
+                            os.remove(
+                                os.path.join(dirpath, "songs", skipping_song_file_name)
+                            )
                         except Exception as e:
                             print(
                                 "cant remove file",
@@ -292,7 +281,7 @@ class myClient(discord.Client):
                         return
                     self.volume = args[0]
                     dotenv.set_key(
-                        dotenv_path=dirpath + "\\.env",
+                        dotenv_path=os.path.join(dirpath, ".env"),
                         key_to_set="VOLUME",
                         value_to_set=str(args[0]),
                     )
@@ -870,7 +859,10 @@ class myClient(discord.Client):
                         print("not playing nor paused")
             elif reactionAdded.emoji.name == "⏭️":
                 if len(self.voice_clients) > 0:
-                    if self.voice_clients[0].is_playing() or self.voice_clients[0].is_paused():
+                    if (
+                        self.voice_clients[0].is_playing()
+                        or self.voice_clients[0].is_paused()
+                    ):
                         print(f"Skipping song {self.song_queue[0].song_title}!")
                         self.voice_clients[0].stop()
                 else:
@@ -880,7 +872,7 @@ class myClient(discord.Client):
                 if len(self.voice_clients) > 0:
                     for song in self.song_queue[1:]:
                         song.player = None
-                        os.remove(dirpath + "\\songs\\" + song.file_name)
+                        os.remove(os.path.join(dirpath, "songs", song.file_name))
                     self.song_queue = self.song_queue[:1]
                     if (
                         self.voice_clients[0].is_playing()
