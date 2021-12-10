@@ -164,7 +164,7 @@ class myClient(discord.Client):
         await self.update_song_list()
         print("loading opus")
         if not discord.opus.is_loaded():
-            discord.opus.load_opus(find_library("libopus"))
+            discord.opus.load_opus(find_library("libopus.so.1"))
         else:
             print("opus already loaded")
         print("creating song directory")
