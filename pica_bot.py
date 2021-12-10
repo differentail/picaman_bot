@@ -870,8 +870,9 @@ class myClient(discord.Client):
                         print("not playing nor paused")
             elif reactionAdded.emoji.name == "⏭️":
                 if len(self.voice_clients) > 0:
-                    print(f"Skipping song {self.song_queue[0].song_title}!")
-                    self.voice_clients[0].stop()
+                    if self.voice_clients[0].is_playing() or self.voice_clients[0].is_paused():
+                        print(f"Skipping song {self.song_queue[0].song_title}!")
+                        self.voice_clients[0].stop()
                 else:
                     print("not in a voice channel")
             elif reactionAdded.emoji.name == "📴":
