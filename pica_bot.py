@@ -42,7 +42,7 @@ guessnumPlayer = ""
 guessnumPlayerID = ""
 guessnumCount = 0
 ydl_opts = {
-    "outtmpl": "%(id)s.%(ext)s",
+    "outtmpl": f"{dirpath}\\songs\\%(id)s.%(ext)s",
     "format": "bestaudio",
     "default_search": "ytsearch",
 }
@@ -67,9 +67,7 @@ class Song:
 
     def copy(self, volume):
         return Song(
-                discord.FFmpegPCMAudio(self.file_name),
-            self.file_name,
-            self.title,
+            discord.FFmpegPCMAudio(self.file_name), self.file_name, self.song_title
         )
 
     @property
@@ -218,7 +216,7 @@ class myClient(discord.Client):
 
         if self.remove_song and last_song_file_name is not None:
             try:
-                os.remove(last_song_file_name)
+                os.remove(os.join(dirpath, "songs", last_song_file_name))
             except Exception as e:
                 print("cant remove file", last_song_file_name, "\n", "Error:", e)
         else:
@@ -311,8 +309,11 @@ class myClient(discord.Client):
                 )
 
                 if download["download_ok"]:  # play music
-                    downloaded_path = download["id"] + "." + download["ext"]
-                    song = Song(discord.FFmpegOpusAudio(downloaded_path),
+                    downloaded_path = os.path.join(
+                        dirpath, "songs", download["id"] + "." + download["ext"]
+                    )
+                    song = Song(
+                        discord.FFmpegOpusAudio(downloaded_path),
                         download["id"] + "." + download["ext"],
                         download["title"],
                     )
@@ -586,11 +587,11 @@ class myClient(discord.Client):
                     guessnumPlayer = message.author.name
                     guessnumPlayerID = message.author.id
                     await fromChannel.send(
-                        f"**ก็มาดิครับ** {message.author.mention} :exclamation:\n\
-                        :question: **วิธีเล่น** :question:\n\
-                        เราจะให้นายทายเลขที่เราคิดไว้ มีค่า `1` ถึง `1024`\n\
-                        พิมพ์ว่า `!? <ตัวเลข>` - ทายว่าใช่เลขนี้มั้ย\n\
-                        แล้วเราจะบอกว่าใช่, น้อยกว่า, หรือมากกว่าเลขของเรา"
+                        f"**ก็มาดิครับ** {message.author.mention} :exclamation:\n"
+                        + ":question: **วิธีเล่น** :question:\n"
+                        + "เราจะให้นายทายเลขที่เราคิดไว้ มีค่า `1` ถึง `1024`\n"
+                        + "พิมพ์ว่า `!? <ตัวเลข>` - ทายว่าใช่เลขนี้มั้ย\n"
+                        + "แล้วเราจะบอกว่าใช่, น้อยกว่า, หรือมากกว่าเลขของเรา"
                     )
             elif cmd == "?":
                 if not isGuessnumPlaying or message.author.id != guessnumPlayerID:
@@ -756,18 +757,18 @@ class myClient(discord.Client):
                     else:
                         await fromChannel.send(
                             f"{message.author.mention} พิมงี้นะจ๊ะ `!together <activity>` <activity> จะมี\n\
-                            :white_small_square:  `youtube` **->** Youtube watch party :arrow_forward:\n\
-                            :white_small_square:  `poker` **->** Poker night :black_joker:\n\
-                            :white_small_square:  `chess` **->** Chess in the Park\n\
-                            :white_small_square:  `betrayal` **->** Betrayal.io\n\
-                            :white_small_square:  `fishing` **->** Fishington.io\n\
-                            :white_small_square:  `letter-tile` **->** Letter Tile\n\
-                            :white_small_square:  `word-snack` **->** Word Snack\n\
-                            :white_small_square:  `doodle-crew` **->** Doodle Crew\n\
-                            :white_small_square:  `spellcast` **->** SpellCast\n\
-                            :white_small_square:  `awkword` **->** Awkword\n\
-                            :white_small_square:  `checkers` **->** Checkers in the Park\n\
-                            ถ้าจะถามว่านอกจากยูทูปกับโป้กเก้อคือไร บอกเลยว่า ไม่รู้"
+:white_small_square:  `youtube` **->** Youtube watch party :arrow_forward:\n\
+:white_small_square:  `poker` **->** Poker night :black_joker:\n\
+:white_small_square:  `chess` **->** Chess in the Park\n\
+:white_small_square:  `betrayal` **->** Betrayal.io\n\
+:white_small_square:  `fishing` **->** Fishington.io\n\
+:white_small_square:  `letter-tile` **->** Letter Tile\n\
+:white_small_square:  `word-snack` **->** Word Snack\n\
+:white_small_square:  `doodle-crew` **->** Doodle Crew\n\
+:white_small_square:  `spellcast` **->** SpellCast\n\
+:white_small_square:  `awkword` **->** Awkword\n\
+:white_small_square:  `checkers` **->** Checkers in the Park\n\
+ถ้าจะถามว่านอกจากยูทูปกับโป้กเก้อคือไร บอกเลยว่า ไม่รู้"
                         )
                 else:
                     await fromChannel.send(
