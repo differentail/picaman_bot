@@ -42,7 +42,7 @@ guessnumPlayer = ""
 guessnumPlayerID = ""
 guessnumCount = 0
 ydl_opts = {
-    "outtmpl": f"{dirpath}\\%(id)s.%(ext)s",
+    "outtmpl": "%(id)s.%(ext)s",
     "format": "bestaudio",
     "default_search": "ytsearch",
 }
@@ -216,7 +216,7 @@ class myClient(discord.Client):
 
         if self.remove_song and last_song_file_name is not None:
             try:
-                os.remove(os.join(dirpath, last_song_file_name))
+                os.remove(os.path.join(last_song_file_name))
             except Exception as e:
                 print("cant remove file", last_song_file_name, "\n", "Error:", e)
         else:
@@ -310,7 +310,7 @@ class myClient(discord.Client):
 
                 if download["download_ok"]:  # play music
                     downloaded_path = os.path.join(
-                        dirpath, download["id"] + "." + download["ext"]
+                        download["id"] + "." + download["ext"]
                     )
                     song = Song(
                         discord.FFmpegOpusAudio(downloaded_path),
