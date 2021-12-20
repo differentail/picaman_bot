@@ -590,10 +590,10 @@ class myClient(discord.Client):
                         f"**ก็มาดิครับ** {message.author.mention} :exclamation:\n"
                         + ":question: **วิธีเล่น** :question:\n"
                         + "เราจะให้นายทายเลขที่เราคิดไว้ มีค่า `1` ถึง `1024`\n"
-                        + "พิมพ์ว่า `!? <ตัวเลข>` - ทายว่าใช่เลขนี้มั้ย\n"
+                        + "พิมพ์ว่า `!guess <ตัวเลข>` - ทายว่าใช่เลขนี้มั้ย\n"
                         + "แล้วเราจะบอกว่าใช่, น้อยกว่า, หรือมากกว่าเลขของเรา"
                     )
-            elif cmd == "?":
+            elif cmd == "guess":
                 if not isGuessnumPlaying or message.author.id != guessnumPlayerID:
                     await fromChannel.send(
                         f"อยากเล่นหรอครับคุณ {message.author.mention} พิม `!guessnum` ก่อนนะครับ ไม่ก็รอคนอื่นเล่นจบก่อนน้า"
