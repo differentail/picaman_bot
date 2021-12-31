@@ -41,6 +41,7 @@ guessnumNumber = randint(1, 1024)
 guessnumPlayer = ""
 guessnumPlayerID = ""
 guessnumCount = 0
+guessnumPlayCount = 0
 ydl_opts = {
     "outtmpl": "%(id)s.%(ext)s",
     "format": "bestaudio",
@@ -67,7 +68,7 @@ class Song:
 
     def copy(self, volume):
         return Song(
-            discord.FFmpegPCMAudio(self.file_name), self.file_name, self.song_title
+            discord.FFmpegOpusAudio(self.file_name), self.file_name, self.song_title
         )
 
     @property
@@ -573,6 +574,21 @@ class myClient(discord.Client):
                         guessnumNumber = randint(1, 1024)
                         await fromChannel.send(f"รีเซ็ตเกมทายเลขละจ้า")
                         return
+                elif args and args[0] == "stop":
+                    if message.author.id != guessnumPlayerID:
+                        await fromChannel.send(
+                            f"{message.author.mention} อย่าไปหยุดความสนุกของ {guessnumPlayer} เขาสิแหม่"
+                        )
+                    else:
+                        await fromChannel.send(
+                            f"{message.author.mention} เลิกเล่นแล้วอ่อโด่ว เลขเมื่อกี้คือ **{guessnumNumber}** น่ะ\n"
+                            + "เดี๋ยวรีเซ็ตเกมให้ละกันนะ"
+                        )
+                        isGuessnumPlaying = False
+                        guessnumPlayer = ""
+                        guessnumPlayerID = ""
+                        guessnumNumber = randint(1, 1024)
+                        return
                 elif isGuessnumPlaying:
                     if message.author.id != guessnumPlayerID:
                         await fromChannel.send(
@@ -612,9 +628,11 @@ class myClient(discord.Client):
                             thisnum = int(args[0])
                         except ValueError:
                             await fromChannel.send(
-                                f"{message.author.mention} ขอเป็นจำนวนเต็มครับพรี่"
+                                f"{message.author.mention} ขอเป็นจำนวนเต็มคับพรี่"
                             )
                         else:
+                            global guessnumPlayCount
+                            guessnumPlayCount += 1
                             if thisnum == guessnumNumber:
                                 responses = [
                                     "เก่งสุด ๆ ไปเลยนะ",
@@ -624,7 +642,8 @@ class myClient(discord.Client):
                                 isGuessnumPlaying = False
                                 guessnumNumber = randint(1, 1024)
                                 await fromChannel.send(
-                                    f"{message.author.mention} {choice(responses)} เลขของผมคือ **{str(thisnum)}** ถูกต้องนะครับ"
+                                    f"{message.author.mention} {choice(responses)} เลขของผมคือ **{thisnum}** ถูกต้องนะครับ\n"
+                                    + f"ทายถูกภายใน {guessnumPlayCount} ครั้ง เก่งมากๆ :clap:"
                                 )
                             elif thisnum > guessnumNumber:
                                 responses = [
