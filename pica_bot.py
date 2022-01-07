@@ -768,7 +768,10 @@ class myClient(discord.Client):
                         "checkers",
                     ]:
                         link = await self.discord_together.create_link(
-                            message.author.voice.channel.id, args[0]
+                            message.author.voice.channel.id,
+                            args[0],
+                            max_age=3600,
+                            max_uses=1,
                         )
                         await fromChannel.send(
                             f"ลิ้งเปิดห้องตรงนี้เลยจ้า คนแรกคลิกที่ลิงค์ก่อนนะ คนอื่นถึงจะกด Play ได้ แต่ก็คลิกลิงค์ได้เหมือนกัน\n{link}"
