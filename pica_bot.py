@@ -252,14 +252,22 @@ class myClient(discord.Client):
                 cmd = args[0]
                 args = args[1:]
 
-                await message.delete(delay=0.1)
+                await message.delete(delay=0.2)
 
                 if cmd == "skip":
                     song_no = int(args[0]) - 1
                     if song_no == 0:
                         self.voice_clients[0].stop()
                     else:
-                        skipping_song_file_name = self.song_queue.pop(song_no).file_name
+                        try:
+                            skipping_song_file_name = self.song_queue.pop(
+                                song_no
+                            ).file_name
+                        except IndexError as e:
+                            sent = await fromChannel.send(
+                                f"{message.author.mention} มันมีถึง {song_no} ที่ไหนเล่า"
+                            )
+                            await sent.delete(delay=10)
                         try:
                             os.remove(skipping_song_file_name)
                         except Exception as e:
@@ -288,12 +296,12 @@ class myClient(discord.Client):
             else:  # user requesting song via name
                 song_name = message.content
                 sender_voicestate = message.author.voice
-                await message.delete(delay=0.1)
+                await message.delete(delay=0.2)
                 if sender_voicestate is None:
                     sent = await fromChannel.send(
                         f"{message.author.mention} ไม่เข้ามาฟังด้วยกันหรอ ;w;"
                     )
-                    await sent.delete(delay=5)
+                    await sent.delete(delay=15)
                     return
                 elif len(self.voice_clients) == 0:
                     await sender_voicestate.channel.connect()
@@ -301,7 +309,7 @@ class myClient(discord.Client):
                     sent = await fromChannel.send(
                         f"{message.author.mention} เข้ามาอยู่ด้วยกันก่อนมามะ"
                     )
-                    await sent.delete(delay=5)
+                    await sent.delete(delay=15)
                     return
 
                 # search music
@@ -336,7 +344,7 @@ class myClient(discord.Client):
                             f"{message.author.mention} ที่ขอมา (`{song_name}`)\nเจอเพลง `{download['title']}`\nแต่มันโหลดไม่ได้งะ`{download['exception']}`"
                         )
 
-                    await sent.delete(delay=10)
+                    await sent.delete(delay=15)
 
         elif message.content.startswith("!") and message.author.id != self.user.id:
             args = message.content[1:].split()
