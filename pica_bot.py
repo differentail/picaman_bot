@@ -409,17 +409,23 @@ class myClient(discord.Client):
                 if len(args) == 0:
                     await fromChannel.send(message.author.mention + " อะไรเล่า!?")
                     return
-                responses = [
-                    "เอาดิ",
-                    "จัดไปอย่าให้เสีย",
-                    "เรื่องนี้มันก็แน่อยู่แล้วปะวะ",
-                    "จะถามอย่างงั้นจริงๆ หรอ",
-                    "ไม่แน่ใจเท่าไหร่ว่ะ",
-                    "ห้ะ?",
-                    "ไม่ดีกว่า",
-                    "อย่าเลยเพื่อน",
-                    "ถ้าอยากมีความสุขก็อย่าเถอะ",
-                ]
+                positive_ans = randint(0, 1)
+                if positive_ans:
+                    responses = [
+                        "เอาดิ",
+                        "ลุยเลยๆ",
+                        "จัดไปอย่าให้เสีย",
+                        "เรื่องนี้มันก็แน่อยู่แล้วปะวะ",
+                        "ก็ดี๊",
+                    ]
+                else:
+                    responses = [
+                        "ไม่ดีกว่า",
+                        "อย่าเลยเพื่อน",
+                        "ถ้าอยากมีความสุขก็อย่าเถอะ",
+                        "ไม่รุดิแต่ฉันว่าไม่",
+                        "ม่ายอะ",
+                    ]
                 await fromChannel.send(message.author.mention + " " + choice(responses))
             elif cmd == "hi":
                 responses = [
