@@ -977,9 +977,21 @@ class myClient(discord.Client):
         return
 
     async def on_voice_state_update(self, member, before, after):
+        if member.bot:
+            return
+
+        def bot_count(members):
+            count = 0
+            for _member in members:
+                if _member.bot:
+                    count += 1
+            return count
+
         if after.channel:  # user joins voice
             print(member.name, "joined", after.channel.name)
-            if len(after.channel.members) == 1:  # first person to join voice
+            if (
+                len(after.channel.members) - bot_count(after.channel.members) == 1
+            ):  # first person to join voice
                 print("first person to join this voice, creating role and text channel")
                 self.temp_roles[after.channel.id] = await member.guild.create_role(
                     name=f"ระเบิดเวลา-{after.channel.name}",
@@ -987,10 +999,10 @@ class myClient(discord.Client):
                 )
                 overwrite_perms = {
                     member.guild.default_role: discord.PermissionOverwrite(
-                        read_messages=False, send_messages=False
+                        send_messages=False, read_message_history=False
                     ),
                     self.temp_roles[after.channel.id]: discord.PermissionOverwrite(
-                        read_messages=True, send_messages=True
+                        send_messages=True, read_message_history=True
                     ),
                 }
                 self.temp_textch[
@@ -1000,6 +1012,7 @@ class myClient(discord.Client):
                     overwrites=overwrite_perms,
                     category=after.channel.category,
                     position=0,
+                    topic="ห้องแชทชั่วคราวสำหรับคุยเรื่องลับลับลับลับ **แชทไม่เซฟนะจ้ะ**",
                 )
             await member.add_roles(self.temp_roles[after.channel.id])
 
@@ -1010,7 +1023,9 @@ class myClient(discord.Client):
                     await member.remove_roles(self.temp_roles[before.channel.id])
                 else:
                     print("member dont have role for", before.channel.name, "???")
-            if len(before.channel.members) == 0:  # last person to leave voice
+            if (
+                len(before.channel.members) - bot_count(before.channel.members) == 0
+            ):  # last person to leave voice
                 print("no more ppl in", before.channel.name)
                 await self.temp_textch.pop(before.channel.id).delete(
                     reason="temp textch delete"
@@ -1020,8 +1035,8 @@ class myClient(discord.Client):
                 )
 
 
-if __name__ == "__main__":
-    print("main!")
+if os.cpu_count() == 12:
+    print("me!")
 new_intent = discord.Intents().default()
 new_intent.members = True
 new_intent.voice_states = True
