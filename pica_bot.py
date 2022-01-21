@@ -96,7 +96,13 @@ class myClient(discord.Client):
     async def update_song_list(self):
         text = "__***Queue list:***__\n"
         if len(self.song_queue):
-            text += f"1. {self.song_queue[0].song_title} `({self.song_queue[0].song_id})` ***(Playing now)***\n"
+            text += (
+                f"1. {self.song_queue[0].song_title} `({self.song_queue[0].song_id})` "
+            )
+            if self.voice_clients[0].is_paused():
+                text += "***(Paused)***\n"
+            else:
+                text += "***(Playing now)***\n"
             for i, song in enumerate(self.song_queue[1:], start=2):
                 text += f"{i}. {song.song_title} `({song.song_id})`\n"
         await self.music_message.edit(content=text)
@@ -887,8 +893,10 @@ class myClient(discord.Client):
                 if len(self.voice_clients) > 0:
                     if self.voice_clients[0].is_playing():
                         self.voice_clients[0].pause()
+                        await self.update_song_list()
                     elif self.voice_clients[0].is_paused():
                         self.voice_clients[0].resume()
+                        await self.update_song_list()
                     else:
                         print("not playing nor paused")
             elif reactionAdded.emoji.name == "⏭️":
