@@ -1007,10 +1007,10 @@ class myClient(discord.Client):
                 )
                 overwrite_perms = {
                     member.guild.default_role: discord.PermissionOverwrite(
-                        send_messages=False, read_message_history=False
+                        send_messages=False, read_messages=False
                     ),
                     self.temp_roles[after.channel.id]: discord.PermissionOverwrite(
-                        send_messages=True, read_message_history=True
+                        send_messages=True, read_messages=True
                     ),
                 }
                 self.temp_textch[
@@ -1022,7 +1022,16 @@ class myClient(discord.Client):
                     position=0,
                     topic="ห้องแชทชั่วคราวสำหรับคุยเรื่องลับลับลับลับ **แชทไม่เซฟนะจ้ะ**",
                 )
-            await member.add_roles(self.temp_roles[after.channel.id])
+            try:
+                member.add_roles(self.temp_roles[after.channel.id])
+            except KeyError:
+                print(
+                    "KeyError when adding role to member\n->",
+                    self.temp_roles,
+                    after.channel.id,
+                )
+            except Exception as e:
+                print("Error while adding temp role\n-> " + e)
 
         if before.channel:  # user leaves voice
             print(member.name, "left", before.channel.name)
@@ -1035,12 +1044,19 @@ class myClient(discord.Client):
                 len(before.channel.members) - bot_count(before.channel.members) == 0
             ):  # last person to leave voice
                 print("no more ppl in", before.channel.name)
-                await self.temp_textch.pop(before.channel.id).delete(
-                    reason="temp textch delete"
-                )
-                await self.temp_roles.pop(before.channel.id).delete(
-                    reason="temp role delete"
-                )
+                try:
+                    await self.temp_textch.pop(before.channel.id).delete(
+                        reason="temp textch delete"
+                    )
+                    await self.temp_roles.pop(before.channel.id).delete(
+                        reason="temp role delete"
+                    )
+                except KeyError:
+                    print(
+                        f"{self.temp_textch=}\n{self.temp_roles=}\n{before.channel.id}"
+                    )
+                except Exception as e:
+                    print("Error while deleting temp role/textch\n-> " + e)
             elif (
                 len(before.channel.members) == bot_count(before.channel.members) == 1
                 and self.voice_clients
