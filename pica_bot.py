@@ -232,10 +232,6 @@ class myClient(discord.Client):
         else:
             self.remove_song = True
 
-        if self.disconnect and not self.song_queue:
-            self.disconnect = False
-            asyncio.run_coroutine_threadsafe(self.voice_clients[0].disconnect())
-
         asyncio.run_coroutine_threadsafe(self.update_song_list(), self.loop)
 
     async def on_member_join(self, member):
@@ -1049,11 +1045,9 @@ class myClient(discord.Client):
                 len(before.channel.members) == bot_count(before.channel.members) == 1
                 and self.voice_clients
                 and self.voice_clients[0].channel == before.channel
+                and not self.voice_clients[0].is_playing()
             ):
-                if self.voice_clients[0].is_playing():
-                    self.disconnect = True
-                else:
-                    await self.voice_clients[0].disconnect()
+                await self.voice_clients[0].disconnect()
 
 
 if os.cpu_count() == 12:
