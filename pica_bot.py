@@ -233,6 +233,7 @@ class myClient(discord.Client):
             self.remove_song = True
 
         if self.disconnect and not self.song_queue:
+            self.disconnect = False
             asyncio.run_coroutine_threadsafe(self.voice_clients[0].disconnect())
 
         asyncio.run_coroutine_threadsafe(self.update_song_list(), self.loop)
