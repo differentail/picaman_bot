@@ -1023,7 +1023,7 @@ class myClient(discord.Client):
                     topic="ห้องแชทชั่วคราวสำหรับคุยเรื่องลับลับลับลับ **แชทไม่เซฟนะจ้ะ**",
                 )
             try:
-                member.add_roles(self.temp_roles[after.channel.id])
+                await member.add_roles(self.temp_roles[after.channel.id])
             except KeyError:
                 print(
                     "KeyError when adding role to member\n->",
