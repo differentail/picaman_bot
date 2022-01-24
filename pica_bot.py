@@ -13,8 +13,15 @@ from dotenv import load_dotenv
 from random import randint, shuffle, choice
 
 
-def isAdmin(messageSender, fromChannel):
+def is_admin(messageSender, fromChannel):
     return messageSender.permissions_in(fromChannel).administrator
+
+
+def has_role(member, role_name):
+    for role in member.roles:
+        if role.name == "จุดรวมพล":
+            return True
+    return False
 
 
 def list_diff(a, b):
@@ -77,7 +84,7 @@ class Song:
         return self.file_name[: self.file_name.rfind(".")]
 
 
-class myClient(discord.Client):
+class MyClient(discord.Client):
     def say_hi(self):
         print("hi")
 
@@ -212,6 +219,14 @@ class myClient(discord.Client):
         # await self.wait_for_input()
         return
 
+    def remove_all_songs(self):
+        for song in self.song_queue[1:]:
+            song.player = None
+            os.remove(song.file_name)
+        self.song_queue = self.song_queue[:1]
+        if self.voice_clients[0].is_playing() or self.voice_clients[0].is_paused():
+            self.voice_clients[0].stop()
+
     def get_next_song(self, error):
         if error is not None:
             print("Something is wrong...?", error)
@@ -251,7 +266,7 @@ class myClient(discord.Client):
     async def on_message(self, message):
         if not self.is_ready():
             return
-        fromChannel = self.get_channel(message.channel.id)
+        fromChannel = message.channel
         if (
             fromChannel.id == self.music_channel_id
             and message.author.id != self.user.id
@@ -480,7 +495,7 @@ class myClient(discord.Client):
                         message.author.mention + " ถ้าใช้ยังไม่เป็น ลอง !lobby help น้า"
                     )
                 elif args[0] == "reset":
-                    if not isAdmin(message.author, fromChannel):
+                    if not is_admin(message.author, fromChannel):
                         await fromChannel.send(
                             f"{message.author.mention} อันนี้แอดมินใช้เท่านั้นน้าา"
                         )
@@ -585,7 +600,7 @@ class myClient(discord.Client):
             elif cmd == "guessnum":
                 global isGuessnumPlaying, guessnumPlayer, guessnumPlayerID, guessnumNumber
                 if args and args[0] == "reset":
-                    if not isAdmin(message.author, fromChannel):
+                    if not is_admin(message.author, fromChannel):
                         await fromChannel.send(
                             f"{message.author.mention} อันนี้แอดมินใช้เท่านั้นน้าา"
                         )
@@ -748,7 +763,7 @@ class myClient(discord.Client):
                     "วาโลแร้น",
                     "วาโลแรนท์",
                 }:
-                    all_chars = [
+                    all_chars = [  # set to valorant chars
                         "Brimstone",
                         "Viper",
                         "Omen",
@@ -776,6 +791,18 @@ class myClient(discord.Client):
                         'f"{message.author.mention} เกมไรอะ ไม่รุจัก'
                     )
             elif cmd == "together":
+                if not has_role(message.author, "จุดรวมพล"):
+                    await fromChannel.send(
+                        f"{message.author.mention} อนุญาตให้ผู้ที่มีโรล `จุดรวมพล` สร้างห้องทูเก้ตเต้อได้เท่านั้นนะจ๊ะ"
+                    )
+                    return
+
+                if fromChannel.name != "จุดรวมพล":
+                    await fromChannel.send(
+                        f"{message.author.mention} กรุณาสร้างห้องทูเก้ตเต้อในห้องจุดรวมพลนะจ้ะ"
+                    )
+                    return
+
                 if message.author.voice:
                     if args and args[0] in [
                         "youtube",
@@ -800,7 +827,7 @@ class myClient(discord.Client):
                             f"ลิ้งเปิดห้องตรงนี้เลยจ้า คนแรกคลิกที่ลิงค์ก่อนนะ คนอื่นถึงจะกด Play ได้ แต่ก็คลิกลิงค์ได้เหมือนกัน\n{link}"
                         )
                     else:
-                        await fromChannel.send(
+                        await fromChannel.send(  # send how to use
                             f"{message.author.mention} พิมงี้นะจ๊ะ `!together <activity>` <activity> จะมี\n\
 :white_small_square:  `youtube` **->** Youtube watch party :arrow_forward:\n\
 :white_small_square:  `poker` **->** Poker night :black_joker:\n\
@@ -823,7 +850,7 @@ class myClient(discord.Client):
             elif cmd == "say":
                 args = message.content.split(" ", 2)[1:]
                 if (
-                    not isAdmin(message.author, fromChannel)
+                    not is_admin(message.author, fromChannel)
                     or message.guild.system_channel is None
                 ):
                     return
@@ -833,7 +860,7 @@ class myClient(discord.Client):
                 messageToSend = messageToSend.replace("<!strikethrough!>", "~~")
                 await channel_to_send.send(messageToSend)
             elif cmd == "react":
-                if not isAdmin(message.author, fromChannel):
+                if not is_admin(message.author, fromChannel):
                     return
                 channel_to_react = message.guild.get_channel(int(args[0]))
                 msg_to_react = channel_to_react.get_partial_message(int(args[1]))
@@ -846,7 +873,7 @@ class myClient(discord.Client):
                         f"reaction {args[2]} to guild {message.guild} on channel {channel_to_react} was not successful (maybe emoji not found?)"
                     )
             elif cmd == "reboot":
-                if not isAdmin(message.author, fromChannel):
+                if not is_admin(message.author, fromChannel):
                     await fromChannel.send(
                         f"{message.author.mention} อันนี้แอดมินใช้เท่านั้นน้าา"
                     )
@@ -912,19 +939,10 @@ class myClient(discord.Client):
             elif reactionAdded.emoji.name == "📴":
                 print("exit voice ch cmd issued")
                 if len(self.voice_clients) > 0:
-                    for song in self.song_queue[1:]:
-                        song.player = None
-                        os.remove(song.file_name)
-                    self.song_queue = self.song_queue[:1]
-                    if (
-                        self.voice_clients[0].is_playing()
-                        or self.voice_clients[0].is_paused()
-                    ):
-                        cur_song = self.song_queue[0]
-                        self.voice_clients[0].stop()
-
+                    self.remove_all_songs()
                     await self.update_song_list()
                     await self.voice_clients[0].disconnect()
+
             elif reactionAdded.emoji.name == "💱":
                 if self.voice_clients:
                     if reactionAdded.member.voice is not None:
@@ -995,7 +1013,7 @@ class myClient(discord.Client):
                     count += 1
             return count
 
-        if after.channel:  # user joins voice
+        if after.channel and after.channel != before.channel:  # user joins voice
             print(member.name, "joined", after.channel.name)
             if (
                 len(after.channel.members) - bot_count(after.channel.members) == 1
@@ -1033,7 +1051,7 @@ class myClient(discord.Client):
             except Exception as e:
                 print("Error while adding temp role\n-> " + e)
 
-        if before.channel:  # user leaves voice
+        if before.channel and before.channel != after.channel:  # user leaves voice
             print(member.name, "left", before.channel.name)
             if before.channel.id in self.temp_roles:
                 if self.temp_roles[before.channel.id] in member.roles:
@@ -1057,12 +1075,14 @@ class myClient(discord.Client):
                     )
                 except Exception as e:
                     print("Error while deleting temp role/textch\n-> " + e)
-            elif (
+            if (
                 len(before.channel.members) == bot_count(before.channel.members) == 1
                 and self.voice_clients
                 and self.voice_clients[0].channel == before.channel
                 and not self.voice_clients[0].is_playing()
             ):
+                self.remove_all_songs()
+                await self.update_song_list()
                 await self.voice_clients[0].disconnect()
 
 
@@ -1071,8 +1091,8 @@ if os.cpu_count() == 12:
 new_intent = discord.Intents().default()
 new_intent.members = True
 new_intent.voice_states = True
-client = myClient(intents=new_intent)
+client = MyClient(intents=new_intent)
 client.run(TOKEN)
 
-print("Client stopped running, press anything to quit...")
+print("Client stopped running")
 
