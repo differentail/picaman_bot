@@ -215,6 +215,14 @@ class MyClient(discord.Client):
                     print(f"removed {reaction.emoji.name}'s role to {member.name}")
         # ------------ done checking self role adding --------------
 
+        # ---------- checking for earlier temp chat/role ------------
+        for role in my_server.roles:
+            if role.name.startswith("!ระเบิดเวลา"):
+                self.temp_roles[role.id] = role
+        for ch in my_server.channels:
+            if ch.name.startswith("!ระเบิดเวลา"):
+                self.temp_textch[ch.id] = ch
+        # ---------- done checking for earlier temp chat/role ------------
         print("ready!")
         # await self.wait_for_input()
         return
@@ -1020,7 +1028,7 @@ class MyClient(discord.Client):
             ):  # first person to join voice
                 print("first person to join this voice, creating role and text channel")
                 self.temp_roles[after.channel.id] = await member.guild.create_role(
-                    name=f"ระเบิดเวลา-{after.channel.name}",
+                    name=f"!ระเบิดเวลา-{after.channel.name}",
                     reason=f"temp role for {after.channel.name}",
                 )
                 overwrite_perms = {
@@ -1034,7 +1042,7 @@ class MyClient(discord.Client):
                 self.temp_textch[
                     after.channel.id
                 ] = await member.guild.create_text_channel(
-                    f"ระเบิดเวลา-{after.channel.name}",
+                    f"!ระเบิดเวลา-{after.channel.name}",
                     overwrites=overwrite_perms,
                     category=after.channel.category,
                     position=0,
