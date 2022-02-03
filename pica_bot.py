@@ -218,10 +218,22 @@ class MyClient(discord.Client):
         # ---------- checking for earlier temp chat/role ------------
         for role in my_server.roles:
             if role.name.startswith("ระเบิดเวลา"):
-                self.temp_roles[role.id] = role
+                role_for = role.name[11:]
+                voice_ch_id = discord.utils.find(
+                    lambda ch: isinstance(ch, discord.VoiceChannel)
+                    and ch.name == role_for,
+                    my_server.channels,
+                ).id
+                self.temp_roles[voice_ch_id] = role
         for ch in my_server.channels:
             if ch.name.startswith("ระเบิดเวลา"):
-                self.temp_textch[ch.id] = ch
+                text_for = ch.name[11:]
+                voice_ch_id = discord.utils.find(
+                    lambda ch: isinstance(ch, discord.VoiceChannel)
+                    and ch.name == role_for,
+                    my_server.channels,
+                ).id
+                self.temp_textch[voice_ch_id] = ch
         # ---------- done checking for earlier temp chat/role ------------
         print("ready!")
         # await self.wait_for_input()
