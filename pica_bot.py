@@ -19,7 +19,7 @@ def is_admin(messageSender, fromChannel):
 
 def has_role(member, role_name):
     for role in member.roles:
-        if role.name == "จุดรวมพล":
+        if role.name == role_name:
             return True
     return False
 
