@@ -277,12 +277,6 @@ class MyClient(discord.Client):
             )
         return
 
-    async def on_member_remove(self, member):
-        joinedGuild = member.guild
-        if joinedGuild.system_channel is not None:
-            await joinedGuild.system_channel.send("บะบายน้า " + member.mention + " ;w;")
-        return
-
     async def on_message(self, message):
         if not self.is_ready():
             return
