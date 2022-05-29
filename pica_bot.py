@@ -85,8 +85,98 @@ class Song:
 
 
 class MyClient(discord.Client):
-    def say_hi(self):
-        print("hi")
+    def __init__(self, *, loop=None, **options):
+        super().__init__(loop=loop, **options)
+
+        print("Setting private variables...")
+
+        self.temp_roles = dict()
+        self.temp_textch = dict()
+        self.song_queue = []
+        self.volume = _volume
+        self.music_channel_id = 887307591062020136
+        self.music_channel = self.get_channel(self.music_channel_id)
+        self.music_message_id = 887309277604237342
+        self.music_message = self.music_channel.get_partial_message(
+            self.music_message_id
+        )
+        self.remove_song = True
+
+        print("creating song directory")
+        try:
+            os.umask(0)
+            os.mkdir(os.path.join(dirpath, "songs"), mode=0o777)
+            os.chmod(os.path.join(dirpath, "songs"), mode=0o777)
+        except FileExistsError:
+            print("song directory already exists")
+
+    async def on_ready(self):
+        await self.change_presence(
+            status=discord.Status.online,
+            activity=discord.Game(name="with @Differential"),
+        )  # change status
+        print(f"Logged in as {self.user}")
+
+        self.discord_together = await discord_together.DiscordTogether(TOKEN)
+        await self.update_song_list()
+        print("checking for self role changes")
+        my_server = self.get_guild(my_server_id)
+
+        # ------------ checking for self role adding ---------------
+        self_role_message = await self.get_channel(self_role_channel_id).fetch_message(
+            selfRoleMsgID
+        )
+        for reaction in self_role_message.reactions:
+            role_to_add = discord.Object(-1)
+            members_have_role = my_server.get_role(
+                self_role_ids[reaction.emoji.name]
+            ).members
+            if reaction.emoji.name in self_role_emojis:
+                role_to_add.id = self_role_ids[reaction.emoji.name]
+            else:
+                await reaction.clear()
+                return
+            reaction_senders = await reaction.users().flatten()
+            for user in list_diff(
+                reaction_senders, members_have_role
+            ):  # self role adding
+                if user.id != BOT_ID:
+                    await user.add_roles(role_to_add)  # add the role
+                    print(f"added {reaction.emoji.name}'s role to {user.name}")
+
+            for member in list_diff(
+                members_have_role, reaction_senders
+            ):  # self role remove
+                if member.id != BOT_ID:
+                    await member.remove_roles(
+                        discord.Object(self_role_ids[reaction.emoji.name])
+                    )
+                    print(f"removed {reaction.emoji.name}'s role to {member.name}")
+        # ------------ done checking self role adding --------------
+
+        # ---------- checking for earlier temp chat/role ------------
+        for role in my_server.roles:
+            if role.name.startswith("ระเบิดเวลา"):
+                role_for = role.name[11:]
+                voice_ch_id = discord.utils.find(
+                    lambda ch: isinstance(ch, discord.VoiceChannel)
+                    and ch.name == role_for,
+                    my_server.channels,
+                ).id
+                self.temp_roles[voice_ch_id] = role
+        for ch in my_server.channels:
+            if ch.name.startswith("ระเบิดเวลา"):
+                text_for = ch.name[11:]
+                voice_ch_id = discord.utils.find(
+                    lambda ch: isinstance(ch, discord.VoiceChannel)
+                    and ch.name == role_for,
+                    my_server.channels,
+                ).id
+                self.temp_textch[voice_ch_id] = ch
+        # ---------- done checking for earlier temp chat/role ------------
+        print("ready!")
+        # await self.wait_for_input()
+        return
 
     async def wait_for_input(self):
         while True:
@@ -151,93 +241,6 @@ class MyClient(discord.Client):
                 "ext": info["ext"],
                 "id": info["id"],
             }
-
-    async def on_ready(self):
-        await self.change_presence(
-            status=discord.Status.online,
-            activity=discord.Game(name="with @Differential"),
-        )  # change status
-        print(f"Logged in as {self.user}")
-        print("Setting private variables...")
-
-        self.temp_roles = dict()
-        self.temp_textch = dict()
-        self.song_queue = []
-        self.volume = _volume
-        self.music_channel_id = 887307591062020136
-        self.music_channel = self.get_channel(self.music_channel_id)
-        self.music_message_id = 887309277604237342
-        self.music_message = self.music_channel.get_partial_message(
-            self.music_message_id
-        )
-        self.remove_song = True
-        self.discord_together = await discord_together.DiscordTogether(TOKEN)
-        await self.update_song_list()
-        print("creating song directory")
-        try:
-            os.umask(0)
-            os.mkdir(os.path.join(dirpath, "songs"), mode=0o777)
-            os.chmod(os.path.join(dirpath, "songs"), mode=0o777)
-        except FileExistsError:
-            print("song directory already exists")
-        print("checking for self role changes")
-        my_server = self.get_guild(my_server_id)
-
-        # ------------ checking for self role adding ---------------
-        self_role_message = await self.get_channel(self_role_channel_id).fetch_message(
-            selfRoleMsgID
-        )
-        for reaction in self_role_message.reactions:
-            role_to_add = discord.Object(-1)
-            members_have_role = my_server.get_role(
-                self_role_ids[reaction.emoji.name]
-            ).members
-            if reaction.emoji.name in self_role_emojis:
-                role_to_add.id = self_role_ids[reaction.emoji.name]
-            else:
-                await reaction.clear()
-                return
-            reaction_senders = await reaction.users().flatten()
-            for user in list_diff(
-                reaction_senders, members_have_role
-            ):  # self role adding
-                if user.id != BOT_ID:
-                    await user.add_roles(role_to_add)  # add the role
-                    print(f"added {reaction.emoji.name}'s role to {user.name}")
-
-            for member in list_diff(
-                members_have_role, reaction_senders
-            ):  # self role remove
-                if member.id != BOT_ID:
-                    await member.remove_roles(
-                        discord.Object(self_role_ids[reaction.emoji.name])
-                    )
-                    print(f"removed {reaction.emoji.name}'s role to {member.name}")
-        # ------------ done checking self role adding --------------
-
-        # ---------- checking for earlier temp chat/role ------------
-        for role in my_server.roles:
-            if role.name.startswith("ระเบิดเวลา"):
-                role_for = role.name[11:]
-                voice_ch_id = discord.utils.find(
-                    lambda ch: isinstance(ch, discord.VoiceChannel)
-                    and ch.name == role_for,
-                    my_server.channels,
-                ).id
-                self.temp_roles[voice_ch_id] = role
-        for ch in my_server.channels:
-            if ch.name.startswith("ระเบิดเวลา"):
-                text_for = ch.name[11:]
-                voice_ch_id = discord.utils.find(
-                    lambda ch: isinstance(ch, discord.VoiceChannel)
-                    and ch.name == role_for,
-                    my_server.channels,
-                ).id
-                self.temp_textch[voice_ch_id] = ch
-        # ---------- done checking for earlier temp chat/role ------------
-        print("ready!")
-        # await self.wait_for_input()
-        return
 
     def remove_all_songs(self):
         for song in self.song_queue[1:]:
