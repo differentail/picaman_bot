@@ -54,6 +54,7 @@ ydl_opts = {
     "outtmpl": "%(id)s.%(ext)s",
     "format": "bestaudio",
     "default_search": "ytsearch",
+    "noprogress": True,
 }
 ydl = youtube_dl.YoutubeDL(ydl_opts)
 my_server_id = 703264756986937415
