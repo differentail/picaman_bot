@@ -799,6 +799,7 @@ class MyClient(discord.Client):
                         "Astra",
                         "Kay/O",
                         "Chamber",
+                        "Neon",
                     ]
                 if all_chars is not None:
                     await fromChannel.send(
