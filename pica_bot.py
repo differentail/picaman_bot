@@ -6,6 +6,7 @@ import discord
 import sys
 import aioconsole
 import dotenv
+from pytest import Instance
 import youtube_dl
 import discord_together
 from discord.errors import ClientException, Forbidden
@@ -141,7 +142,7 @@ class MyClient(discord.Client):
             for user in list_diff(
                 reaction_senders, members_have_role
             ):  # self role adding
-                if user.id != BOT_ID:
+                if user.id != BOT_ID and isinstance(user, discord.Member):
                     await user.add_roles(role_to_add)  # add the role
                     print(f"added {reaction.emoji.name}'s role to {user.name}")
 
