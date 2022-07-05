@@ -96,11 +96,7 @@ class MyClient(discord.Client):
         self.song_queue = []
         self.volume = _volume
         self.music_channel_id = 887307591062020136
-        self.music_channel = self.get_channel(self.music_channel_id)
         self.music_message_id = 887309277604237342
-        self.music_message = self.music_channel.get_partial_message(
-            self.music_message_id
-        )
         self.remove_song = True
 
         print("creating song directory")
@@ -122,6 +118,10 @@ class MyClient(discord.Client):
         await self.update_song_list()
         print("checking for self role changes")
         my_server = self.get_guild(my_server_id)
+        self.music_channel = self.get_channel(self.music_channel_id)
+        self.music_message = self.music_channel.get_partial_message(
+            self.music_message_id
+        )
 
         # ------------ checking for self role adding ---------------
         self_role_message = await self.get_channel(self_role_channel_id).fetch_message(
