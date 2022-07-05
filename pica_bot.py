@@ -115,13 +115,13 @@ class MyClient(discord.Client):
         print(f"Logged in as {self.user}")
 
         self.discord_together = await discord_together.DiscordTogether(TOKEN)
-        await self.update_song_list()
-        print("checking for self role changes")
-        my_server = self.get_guild(my_server_id)
         self.music_channel = self.get_channel(self.music_channel_id)
         self.music_message = self.music_channel.get_partial_message(
             self.music_message_id
         )
+        await self.update_song_list()
+        print("checking for self role changes")
+        my_server = self.get_guild(my_server_id)
 
         # ------------ checking for self role adding ---------------
         self_role_message = await self.get_channel(self_role_channel_id).fetch_message(
