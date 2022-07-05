@@ -6,7 +6,6 @@ import discord
 import sys
 import aioconsole
 import dotenv
-from pytest import Instance
 import youtube_dl
 import discord_together
 from discord.errors import ClientException, Forbidden
