@@ -156,24 +156,20 @@ class MyClient(discord.Client):
         # ------------ done checking self role adding --------------
 
         # ---------- checking for earlier temp chat/role ------------
-        for role in my_server.roles:
-            if role.name.startswith("ระเบิดเวลา"):
-                role_for = role.name[11:]
-                voice_ch_id = discord.utils.find(
-                    lambda ch: isinstance(ch, discord.VoiceChannel)
-                    and ch.name == role_for,
-                    my_server.channels,
-                ).id
-                self.temp_roles[voice_ch_id] = role
-        for ch in my_server.channels:
-            if ch.name.startswith("ระเบิดเวลา"):
-                text_for = ch.name[11:]
-                voice_ch_id = discord.utils.find(
-                    lambda ch: isinstance(ch, discord.VoiceChannel)
-                    and ch.name == role_for,
-                    my_server.channels,
-                ).id
-                self.temp_textch[voice_ch_id] = ch
+        # print("checking for earlier temp chats")
+        # for role in my_server.roles:
+        #     if role.name.startswith("ระเบิดเวลา"):
+        #         role_for = role.name[11:]
+        #         voice_ch_id = discord.utils.find(
+        #             lambda ch: isinstance(ch, discord.VoiceChannel)
+        #             and ch.name == role_for,
+        #             my_server.channels,
+        #         ).id
+        #         self.temp_roles[voice_ch_id] = role
+        #         print(f"found {role.name}")
+        # for ch in my_server.channels:
+        #     if ch.name.startswith("ระเบิดเวลา"):
+        #         self.temp_textch[ch.id] = ch
         # ---------- done checking for earlier temp chat/role ------------
         print("ready!")
         # await self.wait_for_input()
@@ -1034,75 +1030,79 @@ class MyClient(discord.Client):
 
         if after.channel and after.channel != before.channel:  # user joins voice
             print(member.name, "joined", after.channel.name)
-            if (
-                len(after.channel.members) - bot_count(after.channel.members) == 1
-            ):  # first person to join voice
-                print("first person to join this voice, creating role and text channel")
-                self.temp_roles[after.channel.id] = await member.guild.create_role(
-                    name=f"ระเบิดเวลา-{after.channel.name}",
-                    reason=f"temp role for {after.channel.name}",
-                )
-                overwrite_perms = {
-                    member.guild.default_role: discord.PermissionOverwrite(
-                        send_messages=False, read_messages=False
-                    ),
-                    self.temp_roles[after.channel.id]: discord.PermissionOverwrite(
-                        send_messages=True, read_messages=True
-                    ),
-                }
-                self.temp_textch[
-                    after.channel.id
-                ] = await member.guild.create_text_channel(
-                    f"ระเบิดเวลา-{after.channel.name}",
-                    overwrites=overwrite_perms,
-                    category=after.channel.category,
-                    position=0,
-                    topic="ห้องแชทชั่วคราวสำหรับคุยเรื่องลับลับลับลับ **แชทไม่เซฟนะจ้ะ**",
-                )
-            try:
-                await member.add_roles(self.temp_roles[after.channel.id])
-            except KeyError:
-                print(
-                    "KeyError when adding role to member\n->",
-                    self.temp_roles,
-                    after.channel.id,
-                )
-            except Exception as e:
-                print("Error while adding temp role\n-> " + e)
+
+            # --------- for temp chat
+            # if (
+            #     len(after.channel.members) - bot_count(after.channel.members) == 1
+            # ):  # first person to join voice
+
+            #     print("first person to join this voice, creating role and text channel")
+            #     self.temp_roles[after.channel.id] = await member.guild.create_role(
+            #         name=f"ระเบิดเวลา-{after.channel.name}",
+            #         reason=f"temp role for {after.channel.name}",
+            #     )
+
+            #     overwrite_perms = {
+            #         member.guild.default_role: discord.PermissionOverwrite(
+            #             send_messages=False, read_messages=False
+            #         ),
+            #         self.temp_roles[after.channel.id]: discord.PermissionOverwrite(
+            #             send_messages=True, read_messages=True
+            #         ),
+            #     }
+            #     self.temp_textch[
+            #         after.channel.id
+            #     ] = await member.guild.create_text_channel(
+            #         f"ระเบิดเวลา-{after.channel.name}",
+            #         overwrites=overwrite_perms,
+            #         category=after.channel.category,
+            #         position=0,
+            #         topic="ห้องแชทชั่วคราวสำหรับคุยเรื่องลับลับลับลับ **แชทไม่เซฟนะจ้ะ**",
+            #     )
+            # try:
+            #     await member.add_roles(self.temp_roles[after.channel.id])
+            # except KeyError:
+            #     print(
+            #         "KeyError when adding role to member\n->",
+            #         self.temp_roles,
+            #         after.channel.id,
+            #     )
+            # except Exception as e:
+            #     print("Error while adding temp role\n-> " + e)
 
         if before.channel and before.channel != after.channel:  # user leaves voice
             print(member.name, "left", before.channel.name)
-            if before.channel.id in self.temp_roles:
-                if self.temp_roles[before.channel.id] in member.roles:
-                    await member.remove_roles(self.temp_roles[before.channel.id])
-                else:
-                    print("member dont have role for", before.channel.name, "???")
-            if (
-                len(before.channel.members) - bot_count(before.channel.members) == 0
-            ):  # last person to leave voice
-                print("no more ppl in", before.channel.name)
-                try:
-                    await self.temp_textch.pop(before.channel.id).delete(
-                        reason="temp textch delete"
-                    )
-                    await self.temp_roles.pop(before.channel.id).delete(
-                        reason="temp role delete"
-                    )
-                except KeyError:
-                    print(
-                        f"{self.temp_textch=}\n{self.temp_roles=}\n{before.channel.id}"
-                    )
-                except Exception as e:
-                    print("Error while deleting temp role/textch\n-> " + e)
-            if (
-                len(before.channel.members) == bot_count(before.channel.members) == 1
-                and self.voice_clients
-                and self.voice_clients[0].channel == before.channel
-                and not self.voice_clients[0].is_playing()
-            ):
-                self.remove_all_songs()
-                await self.update_song_list()
-                await self.voice_clients[0].disconnect()
+            # if before.channel.id in self.temp_roles:
+            #     if self.temp_roles[before.channel.id] in member.roles:
+            #         await member.remove_roles(self.temp_roles[before.channel.id])
+            #     else:
+            #         print("member dont have role for", before.channel.name, "???")
+            # if (
+            #     len(before.channel.members) - bot_count(before.channel.members) == 0
+            # ):  # last person to leave voice
+            #     print("no more ppl in", before.channel.name)
+            #     try:
+            #         await self.temp_textch.pop(before.channel.id).delete(
+            #             reason="temp textch delete"
+            #         )
+            #         await self.temp_roles.pop(before.channel.id).delete(
+            #             reason="temp role delete"
+            #         )
+            #     except KeyError:
+            #         print(
+            #             f"{self.temp_textch=}\n{self.temp_roles=}\n{before.channel.id}"
+            #         )
+            #     except Exception as e:
+            #         print("Error while deleting temp role/textch\n-> " + e)
+            # if (
+            #     len(before.channel.members) == bot_count(before.channel.members) == 1
+            #     and self.voice_clients
+            #     and self.voice_clients[0].channel == before.channel
+            #     and not self.voice_clients[0].is_playing()
+            # ):
+            #     self.remove_all_songs()
+            #     await self.update_song_list()
+            #     await self.voice_clients[0].disconnect()
 
 
 if os.cpu_count() == 12:
