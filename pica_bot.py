@@ -1094,15 +1094,15 @@ class MyClient(discord.Client):
             #         )
             #     except Exception as e:
             #         print("Error while deleting temp role/textch\n-> " + e)
-            # if (
-            #     len(before.channel.members) == bot_count(before.channel.members) == 1
-            #     and self.voice_clients
-            #     and self.voice_clients[0].channel == before.channel
-            #     and not self.voice_clients[0].is_playing()
-            # ):
-            #     self.remove_all_songs()
-            #     await self.update_song_list()
-            #     await self.voice_clients[0].disconnect()
+            if (
+                len(before.channel.members) == bot_count(before.channel.members) == 1
+                and self.voice_clients
+                and self.voice_clients[0].channel == before.channel
+                and not self.voice_clients[0].is_playing()
+            ):
+                self.remove_all_songs()
+                await self.update_song_list()
+                await self.voice_clients[0].disconnect()
 
 
 if os.cpu_count() == 12:
