@@ -37,7 +37,7 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 MY_ID = int(os.getenv("MY_ID"))
 TEST_CHANNEL_ID = int(os.getenv("TEST_CHANNEL_ID"))
 BOT_ID = int(os.getenv("BOT_ID"))
-YT_KEY = os.getenv("YT_KEY")
+# YT_KEY = os.getenv("YT_KEY")  # not actually used
 _volume = float(os.getenv("VOLUME"))
 
 dirpath = os.path.dirname(__file__)
@@ -324,11 +324,11 @@ class MyClient(discord.Client):
                         print("input error")
                         return
                     self.volume = args[0]
-                    dotenv.set_key(
-                        dotenv_path=os.path.join(dirpath, ".env"),
-                        key_to_set="VOLUME",
-                        value_to_set=str(args[0]),
-                    )
+                    # dotenv.set_key(
+                    #     dotenv_path=os.path.join(dirpath, ".env"),
+                    #     key_to_set="VOLUME",
+                    #     value_to_set=str(args[0]),
+                    # )
                     print(f"volume set to {self.volume}")
 
             else:  # user requesting song via name
